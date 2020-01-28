@@ -1,9 +1,67 @@
+@font-face {
+  font-family: "Px437IBMCGA";
+  src: url("../fonts/Px437IBMCGA.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+}
+* {
+    font-family: 'Px437IBMCGA', monospace;
+    color: #ff72d3;
+    font-size: 14px;
+    cursor: default;
+    -webkit-touch-callout: none; /* iOS Safari */
+      -webkit-user-select: none; /* Safari */
+       -khtml-user-select: none; /* Konqueror HTML */
+         -moz-user-select: none; /* Old versions of Firefox */
+          -ms-user-select: none; /* Internet Explorer/Edge */
+              user-select: none; /* Non-prefixed version, currently
+                                    supported by Chrome, Opera and Firefox */
+}
+#logbox {
+  position: fixed;
+  left: 0;
+  top: 0px;
+  padding: 20px;
+  line-height: 20px;
+  border: 5px solid #ff72d3;
+  margin: 20px;
+  max-height: 300px;
+  max-width: 100%;
+  overflow-y: scroll;
+}
+.info-bar {
+    border: 5px solid #ff72d3;
+    margin: 20px;
+    padding: 20px;
+}
+.controls {
+  display: flex;
+}
+.controls .info {
+    padding: 15px;
+    margin-right: 20px;
+}
+.controls .button {
+    border: 5px solid #ff72d3;
+    padding: 10px;
+    margin-right: 20px;
+}
+.controls .button:active {
+  background-color: #ff72d3;
+  color: #ffffff;
+}
+.touch-controls {
+  display: none;
+}
+.keyboard-controls {
+  display: block;
+}
 .player {
-  width: 100px;
-  height: 100px;
-  position: relative;
-  margin-left: 400px;
-  margin-top: 400px;
+    width: 90px;
+    height: 78px;
+    position: relative;
+    left: calc(50% - 45px);
+    margin-top: 400px;
 }
 
 .player::after {
@@ -13,8 +71,8 @@
 }
 
 .player[data-action='idle']::after {
-  width: 358px;
-  height: 310px;
+  width: 90px;
+  height: 78px;
   position: absolute;
   left: 0;
   bottom: 0;
@@ -22,36 +80,40 @@
 }
 
 .player[data-action='walk-right']::after {
-  width: 360px;
-  height: 336px;
+  width: 90px;
+  height: 84px;
   position: absolute;
   left: 0;
   bottom: 0;
-  background-position: 0 -311px;
+  background-position: 0 calc(-78px);
   animation: walk-right 0.3s steps(2) infinite;
 }
 
 .player[data-action='attack-right']::after {
-  width: 528px;
-  height: 408px;
+  width: 132px;
+  height: 102px;
   position: absolute;
   left: 0;
   bottom: 0;
-  background-position: 0 -647px;
-
-  /* background-position: -300px -647px; */
-
-  /* background-position: -1056px -647px; */
-
+  background-position: 0 -162px;
   animation: attack-right 0.3s steps(3) infinite;
 }
 
 @keyframes walk-right {
   0% { background-position-x: 0; }
-  100% { background-position-x: -720px; }
+  100% { background-position-x: -180px; }
 }
 
 @keyframes attack-right {
   0% { background-position-x: 0; }
-  100% { background-position-x: -1584px; }
+  100% { background-position-x: -396px; }
+}
+
+@media (hover: none) {
+    .keyboard-controls {
+      display: none;
+    }
+    .touch-controls {
+      display: block;
+    }
 }

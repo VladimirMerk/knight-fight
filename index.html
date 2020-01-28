@@ -6,7 +6,26 @@
     <link rel="stylesheet" href="./css/style.css">
   </head>
   <body>
-    <div id="viewport"></div>
+    <div id="logbox"></div>
+    <div id="viewport">
+
+    </div>
+    <div class="info-bar">
+        <div class="touch-controls">
+            <div class="controls">
+                <div class="button" data-keycode="ArrowRight">Move to right</div>
+                <div class="button" data-keycode="Space">Attack</div>
+            </div>
+        </div>
+        <div class="keyboard-controls">
+            <div class="controls">
+                <div class="button" data-keycode="ArrowRight">Move to right</div>
+                <div class="button" data-keycode="Space">Attack</div>
+                <div class="info">Right: &rarr;</div>
+                <div class="info">Attack: space</div>
+            </div>
+        </div>
+    </div>
     <script src="./js/app.js"></script>
   </body>
 </html>
