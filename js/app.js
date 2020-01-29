@@ -33,7 +33,7 @@
     setCharElement(name) {
       this.element = document.createElement('div')
       this.element.classList.add(name)
-      this.defaultLeft = Math.round(window.innerWidth / 2) - 100;
+      this.defaultLeft = 10;
       this.element.attributeStyleMap.set('left', CSS.px(this.defaultLeft))
       this.element.addEventListener('keydown', this.onKeydown.bind(this))
       this.element.addEventListener('keyup', this.onKeyup.bind(this))
