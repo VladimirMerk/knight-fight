@@ -4,23 +4,31 @@
   font-weight: normal;
   font-style: normal;
 }
+
 * {
-    font-family: 'Px437IBMCGA', monospace;
-    color: #ff72d3;
-    font-size: 14px;
-    cursor: default;
-    -webkit-touch-callout: none; /* iOS Safari */
-      -webkit-user-select: none; /* Safari */
-       -khtml-user-select: none; /* Konqueror HTML */
-         -moz-user-select: none; /* Old versions of Firefox */
-          -ms-user-select: none; /* Internet Explorer/Edge */
-              user-select: none; /* Non-prefixed version, currently
+  font-family: 'Px437IBMCGA', monospace;
+  color: #ff72d3;
+  font-size: 14px;
+  cursor: default;
+  -webkit-touch-callout: none; /* iOS Safari */
+  -webkit-user-select: none; /* Safari */
+  -khtml-user-select: none; /* Konqueror HTML */
+  -moz-user-select: none; /* Old versions of Firefox */
+  -ms-user-select: none; /* Internet Explorer/Edge */
+  user-select: none; /* Non-prefixed version, currently
                                     supported by Chrome, Opera and Firefox */
 }
+
+#viewport {
+  position: relative;
+  overflow: hidden;
+  height: 50vh;
+}
+
 #logbox {
   position: fixed;
   left: 0;
-  top: 0px;
+  bottom: 0;
   padding: 20px;
   line-height: 20px;
   border: 5px solid #ff72d3;
@@ -29,39 +37,66 @@
   max-width: 100%;
   overflow-y: scroll;
 }
+
 .info-bar {
-    border: 5px solid #ff72d3;
-    margin: 20px;
-    padding: 20px;
+  border: 5px solid #ff72d3;
+  margin: 20px;
+  padding: 20px;
 }
+
 .controls {
   display: flex;
 }
+
 .controls .info {
-    padding: 15px;
-    margin-right: 20px;
+  padding: 15px;
+  margin-right: 20px;
 }
+
 .controls .button {
-    border: 5px solid #ff72d3;
-    padding: 10px;
-    margin-right: 20px;
+  border: 5px solid #ff72d3;
+  padding: 10px;
+  margin-right: 20px;
 }
+
 .controls .button:active {
   background-color: #ff72d3;
-  color: #ffffff;
+  color: #fff;
 }
+
 .touch-controls {
   display: none;
 }
+
 .keyboard-controls {
   display: block;
 }
+
+.сhandelier {
+  width: 90px;
+  height: 108px;
+  position: absolute;
+  top: 0;
+  background-image: url(../images/chandelier.png);
+  background-repeat: no-repeat;
+}
+
+.window {
+  width: 90px;
+  height: 150px;
+  position: absolute;
+  top: 150px;
+  background-image: url(../images/window.png);
+  background-repeat: no-repeat;
+}
+
 .player {
-    width: 90px;
-    height: 78px;
-    position: relative;
-    left: calc(50% - 45px);
-    margin-top: 400px;
+  width: 132px;
+  height: 78px;
+  position: absolute;
+
+  /* left: calc(50% - 45px); */
+  bottom: 6px;
 }
 
 .player::after {
@@ -79,6 +114,7 @@
   background-position: 0 0;
 }
 
+.player[data-action='walk-left']::after,
 .player[data-action='walk-right']::after {
   width: 90px;
   height: 84px;
@@ -89,6 +125,10 @@
   animation: walk-right 0.3s steps(2) infinite;
 }
 
+.player[data-action='walk-left']::after {
+  transform: scaleX(-1);
+}
+
 .player[data-action='attack-right']::after {
   width: 132px;
   height: 102px;
@@ -97,6 +137,22 @@
   bottom: 0;
   background-position: 0 -162px;
   animation: attack-right 0.3s steps(3) infinite;
+}
+
+.room {
+  border-bottom: 6px solid #000;
+  border-top: 6px solid #000;
+  height: 400px;
+  position: absolute;
+  bottom: 0;
+}
+
+.room.left-wall {
+  border-left: 6px solid #000;
+}
+
+.room.right-wall {
+  border-right: 6px solid #000;
 }
 
 @keyframes walk-right {
@@ -110,10 +166,11 @@
 }
 
 @media (hover: none) {
-    .keyboard-controls {
-      display: none;
-    }
-    .touch-controls {
-      display: block;
-    }
+  .keyboard-controls {
+    display: none;
+  }
+
+  .touch-controls {
+    display: block;
+  }
 }
