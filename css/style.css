@@ -22,7 +22,7 @@
 #viewport {
   position: relative;
   overflow: hidden;
-  height: 50vh;
+  height: 412px;
 }
 
 #logbox {
@@ -33,7 +33,7 @@
   line-height: 20px;
   border: 5px solid #ff72d3;
   margin: 20px;
-  max-height: 300px;
+  max-height: 120px;
   max-width: 100%;
   overflow-y: scroll;
 }
@@ -135,8 +135,17 @@
   position: absolute;
   left: 0;
   bottom: 0;
-  background-position: 0 -162px;
+  background-position: 0 -168px;
   animation: attack-right 0.3s steps(3) infinite;
+}
+
+.player[data-action='set-shield']::after {
+  width: 78px;
+  height: 78px;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  background-position: 0 -276px;
 }
 
 .room {
