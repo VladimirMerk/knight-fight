@@ -4,7 +4,7 @@
   const LOGBOX = document.getElementById('logbox')
 
   class Camera extends EventTarget {
-    constructor(viewport, objects) {
+    constructor(viewport, options) {
       super();
       this.viewport = viewport;
       this.position = {
@@ -21,7 +21,8 @@
         xmax: 0,
         ymax: 0
       }
-      this.objects = objects;
+      this.objects = options.objects;
+      this.target = player;
 
       if (this.objects.map) {
         this.bounds.xmax = this.objects.map.width - (this.viewport.offsetWidth / 2) + 6;
@@ -30,23 +31,46 @@
       }
 
       this.timer = null;
-      this.rps = 1; // redraw per second
+      this.rps = 24; // redraw per second
       this.freeMove = false;
+      this.elements = [];
       this.setCameraPosition();
       this.draw();
       this.calculates();
       this.addEventListener('keydown', this.onKeyDown.bind(this))
       this.addEventListener('keyup', this.onKeyUp.bind(this))
-      // this.motor();
+      this.motor();
     }
     draw () {
-      const fragment = document.createDocumentFragment();
-      for (const object of Object.values(this.objects)) {
-        // console.log('object', object)
-        // Условие
-        // Если объект попадает в кадр
-        const objectFragment = object.draw()
-        for (const element of objectFragment.children) {
+      if (! this.elements.length) {
+        const fragment = document.createDocumentFragment();
+        for (const object of Object.values(this.objects)) {
+          // Условие
+          // Если объект попадает в кадр
+          // const objectFragment = object.draw()
+          // fragment.appendChild(objectFragment);
+          // this.elements.push(objectFragment);
+
+          object.draw().forEach(element => {
+            fragment.appendChild(element)
+            this.elements.push(element)
+          });
+          // const elements = object.draw()
+          // console.log('elements', ...elements)
+          // fragment.appendChild(...elements);
+          // this.elements.push(...elements);
+        }
+        this.viewport.innerHTML = "";
+        console.log('fragment', fragment.children)
+        this.viewport.appendChild(fragment);
+        // this.calculates ()
+      }
+
+
+      for (const element of this.elements) {
+      // Условие
+      // Если объект попадает в кадр
+        // for (const element of objectFragment.children) {
           const leftStyle = element.attributeStyleMap.get('margin-left') || { value: 0 }
           element.attributeStyleMap.set('margin-left', CSS.px(
              - this.position.x + (this.viewport.offsetWidth / 2)
@@ -55,23 +79,8 @@
           element.attributeStyleMap.set('margin-top', CSS.px(
              - this.position.y + (this.viewport.offsetHeight / 2)
           ));
-        }
-        fragment.appendChild(objectFragment);
+        // }
       }
-      const div = document.createElement('div')
-
-      div.style.position = 'absolute';
-      div.style.top = '50%';
-      div.style.left = '50%';
-      div.style.width = '2px';
-      div.style.height = '2px';
-      div.style.marginLeft = '0px';
-      div.style.marginTop = '0px';
-      div.style.backgroundColor = '#f00';
-      fragment.appendChild(div);
-      this.viewport.innerHTML = "";
-      this.viewport.appendChild(fragment);
-      this.calculates ()
     }
     calculates () {
       toLog(`width: ${this.viewport.offsetWidth};\
@@ -80,7 +89,9 @@
              y: ${this.position.y};`);
     }
     motor () {
-      setInterval(this.draw.bind(this), 1000 / this.fps);
+      setInterval(() => {
+        this.setCameraPosition()
+      }, 1000 / this.fps);
     }
     stop () {
       clearInterval(this.timer);
@@ -93,36 +104,54 @@
           if (this.velocity.y > 0) {
             this.velocity.y = 0;
           }
-          this.velocity.y -= 1;
+          this.velocity.y -= 2;
         break;
         case 'down':
           this.velocity.x = 0;
           if (this.velocity.y < 0) {
             this.velocity.y = 0;
           }
-          this.velocity.y += 1;
+          this.velocity.y += 2;
         break;
         case 'right':
           this.velocity.y = 0;
           if (this.velocity.x < 0) {
             this.velocity.x = 0;
           }
-          this.velocity.x += 1;
+          this.velocity.x += 2;
         break;
         case 'left':
           this.velocity.y = 0;
           if (this.velocity.x > 0) {
             this.velocity.x = 0;
           }
-          this.velocity.x -= 1;
+          this.velocity.x -= 2;
         break;
       }
-      this.setCameraPosition()
-      this.draw();
+    }
+    slowDownVelocity() {
+      if (this.velocity.x > 0) {
+        this.velocity.x -= .1;
+        if (this.velocity.x < 1) {
+          this.velocity.x = 0;
+        }
+      } else if (this.velocity.x < 0) {
+        this.velocity.x += .1;
+        if (this.velocity.x > -1) {
+          this.velocity.x = 0;
+        }
+      }
     }
     setCameraPosition() {
-      this.position.x += this.velocity.x
-      this.position.y += this.velocity.y
+
+      if (this.freeMove) {
+        this.position.x += this.velocity.x
+        this.position.y += this.velocity.y
+        this.slowDownVelocity()
+      } else if (this.target) {
+        this.position = this.getTargetPosition()
+        // console.log(this.position)
+      }
 
       if (this.position.x < this.bounds.xmin) {
         this.position.x = this.bounds.xmin;
@@ -136,13 +165,10 @@
       if (this.position.y > this.bounds.ymax) {
         this.position.y = this.bounds.ymax;
       }
-      // if (this.position.y > this.bounds.ymin) {
-      //   this.position.y = this.bounds.ymin;
-      // }
-
-      // if (this.position.y < -this.bounds.ymax) {
-      //   this.position.y = -this.bounds.ymax;
-      // }
+      this.draw();
+    }
+    getTargetPosition() {
+      return this.target.getPosition()
     }
     onKeyDown(e) {
       switch (e.code) {
@@ -173,28 +199,33 @@
         case 'ShiftLeft':
         case 'ShiftRight':
           this.freeMove = false;
+          this.velocity.x = 0;
+          this.velocity.y = 0;
         break;
       }
     }
   }
 
   class Creature {
-    constructor(id) {
+    constructor(id, map) {
       this.id = id;
       this.actionValue = 'idle';
       this.speed = 6;
       this.position = 10;
       this.element = null;
+      this.map = map;
       this.setCharElement();
+      this.minPosition = 6;
+      this.maxPosition = (this.map.width - 6 - this.width * 2);
       this.actionTimer = setInterval(this.onAction.bind(this), 50);
     }
-    get left(){
-      const result = this.element.attributeStyleMap.get('left')
-      return result ? result.value : 0
-    }
-    get offsetLeft(){
-      return this.element.offsetLeft
-    }
+    // get left(){
+    //   const result = this.element.attributeStyleMap.get('left')
+    //   return result ? result.value : 0
+    // }
+    // get offsetLeft(){
+    //   return this.element.offsetLeft
+    // }
     get width() {
       const result = this.element.computedStyleMap().get('width')
       return result ? result.value : 0
@@ -207,13 +238,18 @@
       this.element.attributeStyleMap.set('bottom', CSS.px(6))
     }
     draw() {
-      const fragment = document.createDocumentFragment();
-      fragment.appendChild(this.element);
-      return fragment;
+      // const fragment = document.createDocumentFragment();
+      // fragment.appendChild(this.element);
+      // return fragment;
+      return [this.element];
     }
     updateCharElement() {
       this.element.attributeStyleMap.set('left', CSS.px(this.position))
       this.element.dataset.action = this.actionValue;
+    }
+    getPosition() {
+      const offset = this.map.getOffset()
+      return { x: offset.left + parseInt(this.element.offsetLeft, 10), y: offset.top + parseInt(this.element.offsetTop, 10) }
     }
     setAction(action) {
       // this.action = action;
@@ -224,16 +260,29 @@
     releaseAction() {
       this.actionValue = 'idle';
     }
+    walkRight() {
+      this.position += this.speed;
+      this.maxPosition = (this.map.width - 6 - this.width);
+      if (this.position > this.maxPosition) {
+        this.position = this.maxPosition;
+      }
+    }
+    walkLeft() {
+        this.position -= this.speed;
+        if (this.position < this.minPosition) {
+          this.position = this.minPosition;
+        }
+    }
     onAction() {
       switch (this.actionValue) {
         case 'attack-right':
 
           break;
         case 'walk-right':
-          this.position += this.speed;
+          this.walkRight()
           break;
         case 'walk-left':
-          this.position -= this.speed;
+          this.walkLeft()
           break;
         default:
           break;
@@ -252,6 +301,9 @@
     }
     draw () {
       return this.creatureObject.draw()
+    }
+    getPosition () {
+      return this.creatureObject.getPosition()
     }
     onKeyDown(e) {
       console.log(e)
@@ -329,17 +381,15 @@
 
   class Map {
     constructor() {
-      this.map = [new Room(), new Room(), new Room()]
+      this.map = [new Room(), new Room(), new Room(), new Room()]
       this.width = 0;
       this.height = 0;
-      // this.player = player;
-      // this.playerPosition = this.player.left;
-      // this.player.addEventListener('playerMove', this.onPlayerMove.bind(this));
       this.draw();
     }
     draw() {
       let maxWidth = 0;
-      const fragment = document.createDocumentFragment()
+      // const fragment = document.createDocumentFragment()
+      const elements = []
       for (const [index, room] of this.map.entries()) {
         const roomElement = room.draw();
         if (index === 0) {
@@ -349,59 +399,33 @@
           roomElement.classList.add('right-wall');
         }
         roomElement.attributeStyleMap.set('left', CSS.px(maxWidth));
-        fragment.appendChild(roomElement);
+        // fragment.appendChild(roomElement);
+        elements.push(roomElement);
         maxWidth += room.width;
 
         this.height = this.height < room.height ? room.height : this.height;
       }
       this.height += 6;
       this.width = maxWidth;
-      // fragment.appendChild(player.element)
-      return fragment;
+      // return fragment;
+      return elements;
     }
-    // onPlayerMove(e) {
-    //   if (this.checkCameraColission(e.detail.position)) {
-    //     this.playerPosition = this.playerPosition + e.detail.position
-    //     for (const [index, room] of this.map.entries()) {
-    //       const roomElement = room.draw();
-    //       const left = roomElement.attributeStyleMap.get('left').value;
-    //       roomElement.attributeStyleMap.set('left', CSS.px(left - e.detail.position));
-    //     }
-    //   } else if (this.checkPlayerColission(e.detail.position)) {
-    //     this.playerPosition = this.playerPosition + e.detail.position
-    //     this.player.element.attributeStyleMap.set('left', CSS.px(this.player.left + e.detail.position));
-    //   }
-    // }
-    // checkCameraColission(shift) {
-    //   let result = true;
-    //   if ((this.playerPosition) < 0) {
-    //     result = false;
-    //   } else if (
-    //     this.playerPosition > (this.mapWidth - VIEWPORT.clientWidth)+10
-    //   ) {
-    //     result = false;
-    //   }
-    //   return result;
-    // }
-    // checkPlayerColission(shift) {
-    //   let result = true;
-    //   if (this.player.left+shift < 10) {
-    //     result = false;
-    //   } else if (this.playerPosition + shift + this.player.defaultLeft + this.player.width > this.mapWidth - 10) {
-    //     result = false;
-    //   }
-    //   return result;
-    // }
+    getOffset() {
+      return {
+        left: Math.abs(parseInt(this.map[0].element.offsetLeft) || 0),
+        top:  Math.abs(parseInt(this.map[0].element.offsetTop) || 0),
+      }
+    }
   }
 
-  // const player = new Creature('player');
-  // const map = new Map(player);
-
   const map = new Map()
-  const player = new Player( new Creature('player') )
+  const player = new Player( new Creature('player', map) )
   const mainCamera = new Camera(VIEWPORT, {
-    map,
-    player
+    objects: {
+      map,
+      player
+    },
+    target: player
   })
   console.log('mainCamera', mainCamera)
 
