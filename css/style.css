@@ -90,6 +90,46 @@
   background-repeat: no-repeat;
 }
 
+/* .creature.colission { */
+
+/* filter: invert(1); */
+
+/* } */
+
+.creature.damaged {
+  animation: damaged 0.1s steps(2);
+}
+
+.creature[data-action='death']::after {
+  width: 54px;
+  height: 54px;
+  background-image: url("../images/death.png");
+  position: absolute;
+  left: calc(50% - 27px);
+  bottom: 0;
+  background-position: 0 0;
+  animation: death 0.3s steps(3) infinite;
+}
+
+.box {
+  width: 42px;
+  height: 42px;
+  position: absolute;
+  bottom: 6px;
+}
+
+.box::after {
+  content: "";
+  background-image: url("../images/box.png");
+  background-repeat: no-repeat;
+  width: 42px;
+  height: 42px;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  background-position: 0 0;
+}
+
 .player {
   width: 132px;
   height: 78px;
@@ -172,6 +212,16 @@
 @keyframes attack-right {
   0% { background-position-x: 0; }
   100% { background-position-x: -396px; }
+}
+
+@keyframes damaged {
+  50% { filter: invert(1); }
+  100% { filter: initial; }
+}
+
+@keyframes death {
+  0% { background-position-x: 0; }
+  100% { background-position-x: -108px; }
 }
 
 @media (hover: none) {

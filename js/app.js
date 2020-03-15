@@ -21,17 +21,22 @@
         xmax: 0,
         ymax: 0
       }
-      this.objects = options.objects;
-      this.target = player;
+      // this.objects = options.objects;
+      this.map = options.map;
+      this.target = this.findTargetById(options.target);
 
-      if (this.objects.map) {
-        this.bounds.xmax = this.objects.map.width - (this.viewport.offsetWidth / 2) + 6;
-        this.bounds.ymax = this.objects.map.height - (this.viewport.offsetHeight / 2) + 6;
-        this.position.y = (this.objects.map.height / 2);
+      if (this.map) {
+        this.bounds.xmax = this.map.width - (this.viewport.offsetWidth / 2) + 6;
+        this.bounds.ymax = this.map.height - (this.viewport.offsetHeight / 2) + 6;
+        this.position.y = (this.map.height / 2);
+        this.map.creatures.forEach(creature => {
+          creature.addEventListener('hit-right', this.calculateHit.bind(this))
+          creature.addEventListener('death', this.removeCreature.bind(this))
+        });
       }
 
       this.timer = null;
-      this.rps = 24; // redraw per second
+      this.rps = 10 || 24; // redraw per second
       this.freeMove = false;
       this.elements = [];
       this.setCameraPosition();
@@ -42,44 +47,26 @@
       this.motor();
     }
     draw () {
-      if (! this.elements.length) {
+      this.calculateCollisions()
+
+      if (this.map && ! this.elements.length) {
         const fragment = document.createDocumentFragment();
-        for (const object of Object.values(this.objects)) {
-          // Условие
-          // Если объект попадает в кадр
-          // const objectFragment = object.draw()
-          // fragment.appendChild(objectFragment);
-          // this.elements.push(objectFragment);
-
-          object.draw().forEach(element => {
-            fragment.appendChild(element)
-            this.elements.push(element)
-          });
-          // const elements = object.draw()
-          // console.log('elements', ...elements)
-          // fragment.appendChild(...elements);
-          // this.elements.push(...elements);
-        }
         this.viewport.innerHTML = "";
-        console.log('fragment', fragment.children)
+        this.map.draw().forEach(element => {
+          fragment.appendChild(element)
+          this.elements.push(element)
+        });
         this.viewport.appendChild(fragment);
-        // this.calculates ()
       }
-
-
       for (const element of this.elements) {
-      // Условие
-      // Если объект попадает в кадр
-        // for (const element of objectFragment.children) {
-          const leftStyle = element.attributeStyleMap.get('margin-left') || { value: 0 }
-          element.attributeStyleMap.set('margin-left', CSS.px(
-             - this.position.x + (this.viewport.offsetWidth / 2)
-          ));
-          const topStyle = element.attributeStyleMap.get('margin-top') || { value: 0 }
-          element.attributeStyleMap.set('margin-top', CSS.px(
-             - this.position.y + (this.viewport.offsetHeight / 2)
-          ));
-        // }
+        const leftStyle = element.attributeStyleMap.get('margin-left') || { value: 0 }
+        element.attributeStyleMap.set('margin-left', CSS.px(
+           - this.position.x + (this.viewport.offsetWidth / 2)
+        ));
+        const topStyle = element.attributeStyleMap.get('margin-top') || { value: 0 }
+        element.attributeStyleMap.set('margin-top', CSS.px(
+           - this.position.y + (this.viewport.offsetHeight / 2)
+        ));
       }
     }
     calculates () {
@@ -91,7 +78,7 @@
     motor () {
       setInterval(() => {
         this.setCameraPosition()
-      }, 1000 / this.fps);
+      }, 1000 / this.rps);
     }
     stop () {
       clearInterval(this.timer);
@@ -168,7 +155,7 @@
       this.draw();
     }
     getTargetPosition() {
-      return this.target.getPosition()
+      return this.target ? this.target.getPosition() : 0
     }
     onKeyDown(e) {
       switch (e.code) {
@@ -204,19 +191,89 @@
         break;
       }
     }
+    findTargetById(id) {
+      if (! id || ! this.map) return null
+      return this.map.creatures.find(creature => creature.id === id)
+    }
+    calculateCollisions() {
+      this.map.creatures.forEach((creature) => {
+        this.map.creatures.forEach((otherCreature) => {
+          if (creature === otherCreature) return
+          let creatureBound = creature.element.getBoundingClientRect()
+          creatureBound.x1 = creatureBound.x + creature.colissionWidth
+          creatureBound.y1 = creatureBound.y + creatureBound.height
+          let otherCreatureBound = otherCreature.element.getBoundingClientRect()
+          otherCreatureBound.x1 = otherCreatureBound.x + otherCreature.colissionWidth
+          otherCreatureBound.y1 = otherCreatureBound.y + otherCreatureBound.height
+          creature.colission(this.intersects(creatureBound, otherCreatureBound))
+        })
+      })
+      // for ()
+      // console.log('calculateCollisions')
+    }
+    removeCreature(e) {
+      const creature = e.target
+      this.map.creatures.forEach((otherCreature, index) => {
+        if (creature === otherCreature) {
+          toLog(`${otherCreature.id} is killed`)
+          this.map.creatures.splice(index, 1)
+        }
+      })
+    }
+    calculateHit(e) {
+      const creature = e.target
+      switch (e.type) {
+        case 'hit-right':
+          this.map.creatures.forEach((otherCreature) => {
+            if (creature === otherCreature) return
+            let creatureBound = creature.element.getBoundingClientRect()
+            creatureBound.x1 = creatureBound.x + creature.attackWidth
+            creatureBound.y1 = creatureBound.y + creatureBound.height
+            let otherCreatureBound = otherCreature.element.getBoundingClientRect()
+            otherCreatureBound.x1 = otherCreatureBound.x + otherCreature.colissionWidth
+            otherCreatureBound.y1 = otherCreatureBound.y + otherCreatureBound.height
+            const colission = this.intersects(creatureBound, otherCreatureBound)
+            if (colission.x > 0) {
+              otherCreature.hit(e.detail.damage)
+            }
+          })
+        break;
+      }
+    }
+    intersects(a, b){
+      return {
+        x: (a.x1 >= b.x && a.x1 <= b.x1) ? 1 : (a.x >= b.x && a.x <= b.x1) ? -1 : 0,
+        y: 0
+      }
+    }
   }
 
-  class Creature {
-    constructor(id, map) {
+  class Creature extends EventTarget {
+    constructor(id, {
+      colissionWidth = 42,
+      position = 10,
+      speed = 6,
+      attackWidth = 0,
+      damage = 0
+    } = {}) {
+
+      super();
       this.id = id;
       this.actionValue = 'idle';
-      this.speed = 6;
-      this.position = 10;
+      this.colissionWidth = colissionWidth;
+      this.attackWidth = attackWidth;
+      this.damage = damage;
+      this.colissionInfo = {x: 0, y: 0};
+      this.speed = speed;
+      this.position = position;
+      this.hitPoints = 50;
       this.element = null;
-      this.map = map;
+      // this.map = null;
       this.setCharElement();
+      // this.minPosition = 6;
+      // this.maxPosition = (this.map.width - 6 - this.width * 2);
       this.minPosition = 6;
-      this.maxPosition = (this.map.width - 6 - this.width * 2);
+      this.maxPosition = 500;
       this.actionTimer = setInterval(this.onAction.bind(this), 50);
     }
     // get left(){
@@ -226,29 +283,68 @@
     // get offsetLeft(){
     //   return this.element.offsetLeft
     // }
+    colission(val) {
+      this.colissionInfo = val;
+      if (! this.element) return
+      if (val.x || val.y) {
+        this.element.classList.add('colission')
+      } else {
+        this.element.classList.remove('colission')
+      }
+
+    }
     get width() {
-      const result = this.element.computedStyleMap().get('width')
+      const result = this.element ? this.element.computedStyleMap().get('width') : null
       return result ? result.value : 0
     }
     setCharElement() {
       this.element = document.createElement('div')
+      this.element.classList.add('creature')
       this.element.classList.add(this.id)
-      this.element.setAttribute('id', this.id)
+      // this.element.setAttribute('id', this.id)
       this.element.attributeStyleMap.set('left', CSS.px(this.position))
       this.element.attributeStyleMap.set('bottom', CSS.px(6))
+      this.element.addEventListener('animationiteration', this.onAnimationIteration.bind(this))
+      this.element.addEventListener('animationend', this.onAnimationIteration.bind(this))
+    }
+    onAnimationIteration(e) {
+      switch (e.animationName) {
+        case 'attack-right':
+          this.dispatchEvent(new CustomEvent('hit-right', { detail: { damage: this.damage } }));
+          break;
+        case 'damaged':
+          if (!this.element) return
+          this.element.classList.remove('damaged')
+          break;
+        case 'death':
+          this.element.remove();
+          this.dispatchEvent(new CustomEvent('death'));
+          break;
+      }
+      // console.log('Animation end', e)
+    }
+    hit(damage) {
+      toLog(`hit on ${this.id} at ${damage}HP`)
+      this.hitPoints -= damage;
+      if (this.hitPoints <= 0) {
+        this.setAction('death')
+      } else {
+        if (! this.element) return
+        this.element.classList.add('damaged')
+      }
     }
     draw() {
-      // const fragment = document.createDocumentFragment();
-      // fragment.appendChild(this.element);
-      // return fragment;
       return [this.element];
     }
     updateCharElement() {
+      if (! this.element) return
       this.element.attributeStyleMap.set('left', CSS.px(this.position))
       this.element.dataset.action = this.actionValue;
     }
     getPosition() {
-      const offset = this.map.getOffset()
+      if (! this.element) return {x: 0, y: 0}
+      // const offset = this.map.getOffset()
+      const offset = {left: 0, top: 0};
       return { x: offset.left + parseInt(this.element.offsetLeft, 10), y: offset.top + parseInt(this.element.offsetTop, 10) }
     }
     setAction(action) {
@@ -261,13 +357,16 @@
       this.actionValue = 'idle';
     }
     walkRight() {
+      if (this.colissionInfo.x > 0) return
       this.position += this.speed;
-      this.maxPosition = (this.map.width - 6 - this.width);
+      // this.maxPosition = (this.map.width - 6 - this.width);
+      this.maxPosition = 500;
       if (this.position > this.maxPosition) {
         this.position = this.maxPosition;
       }
     }
     walkLeft() {
+      if (this.colissionInfo.x < 0) return
         this.position -= this.speed;
         if (this.position < this.minPosition) {
           this.position = this.minPosition;
@@ -291,22 +390,22 @@
     }
   }
 
-  class Player extends EventTarget {
-    constructor(creatureObject) {
-      super()
+  class Player extends Creature {
+    constructor(...args) {
+      super(...args);
       this.isShift = false;
-      this.creatureObject = creatureObject
+      // this.creatureObject = creatureObject
       this.addEventListener('keydown', this.onKeyDown.bind(this))
       this.addEventListener('keyup', this.onKeyUp.bind(this))
     }
-    draw () {
-      return this.creatureObject.draw()
-    }
-    getPosition () {
-      return this.creatureObject.getPosition()
-    }
+    // draw () {
+      // return this.creatureObject.draw()
+    // }
+    // getPosition () {
+      // return this.creatureObject.getPosition()
+    // }
     onKeyDown(e) {
-      console.log(e)
+      // console.log('onKeyDown', e)
       switch (e.code) {
         case 'ShiftLeft':
         case 'ShiftRight':
@@ -317,23 +416,23 @@
         switch (e.code) {
           case 'ArrowRight':
             // this.creatureObject.moveRight()
-            this.creatureObject.setAction('walk-right')
+            this.setAction('walk-right')
           break;
           case 'ArrowDown':
-            this.creatureObject.setAction('set-shield')
+            this.setAction('set-shield')
           break;
           case 'ArrowLeft':
-            this.creatureObject.setAction('walk-left')
+            this.setAction('walk-left')
             // this.creatureObject.setAction('walk-left')
           break;
           case 'Space':
-            this.creatureObject.setAction('attack-right')
+            this.setAction('attack-right')
           break;
         }
       }
     }
     onKeyUp(e) {
-      this.creatureObject.releaseAction()
+      this.releaseAction()
       switch (e.code) {
         case 'ShiftLeft':
         case 'ShiftRight':
@@ -380,22 +479,23 @@
   }
 
   class Map {
-    constructor() {
-      this.map = [new Room(), new Room(), new Room(), new Room()]
+    constructor(creatures) {
+      this.rooms = [new Room(), new Room(), new Room(), new Room()]
       this.width = 0;
       this.height = 0;
+      this.creatures = creatures;
       this.draw();
     }
     draw() {
       let maxWidth = 0;
       // const fragment = document.createDocumentFragment()
       const elements = []
-      for (const [index, room] of this.map.entries()) {
+      for (const [index, room] of this.rooms.entries()) {
         const roomElement = room.draw();
         if (index === 0) {
           roomElement.classList.add('left-wall');
         }
-        if (index === this.map.length - 1){
+        if (index === this.rooms.length - 1){
           roomElement.classList.add('right-wall');
         }
         roomElement.attributeStyleMap.set('left', CSS.px(maxWidth));
@@ -407,25 +507,44 @@
       }
       this.height += 6;
       this.width = maxWidth;
-      // return fragment;
+
+      for (const creature of Object.values(this.creatures)) {
+        creature.draw().forEach(element => {
+          elements.push(element)
+        });
+      }
+
       return elements;
     }
     getOffset() {
       return {
-        left: Math.abs(parseInt(this.map[0].element.offsetLeft) || 0),
-        top:  Math.abs(parseInt(this.map[0].element.offsetTop) || 0),
+        left: Math.abs(parseInt(this.rooms[0].element.offsetLeft) || 0),
+        top:  Math.abs(parseInt(this.rooms[0].element.offsetTop) || 0),
       }
     }
   }
 
-  const map = new Map()
-  const player = new Player( new Creature('player', map) )
+  const creatures = []
+  function registerCreature(id, options = {}) {
+    creatures.push(new Creature(id, options));
+    return creatures[creatures.length - 1];
+  }
+  function registerPlayer(id, options = {}) {
+    creatures.push(new Player(id, options));
+    return creatures[creatures.length - 1];
+  }
+
+  const player = registerPlayer('player', {
+    colissionWidth: 90,
+    damage: 5,
+    attackWidth: 132
+  })
+
+  registerCreature('box', { position: 180 })
+
   const mainCamera = new Camera(VIEWPORT, {
-    objects: {
-      map,
-      player
-    },
-    target: player
+    map: new Map(creatures),
+    target: 'player'
   })
   console.log('mainCamera', mainCamera)
 
