@@ -30,7 +30,7 @@
         this.bounds.ymax = this.map.height - (this.viewport.offsetHeight / 2) + 6;
         this.position.y = (this.map.height / 2);
         this.map.creatures.forEach(creature => {
-          creature.addEventListener('hit-right', this.calculateHit.bind(this))
+          creature.addEventListener('hit', this.calculateHit.bind(this))
           creature.addEventListener('death', this.removeCreature.bind(this))
         });
       }
@@ -196,16 +196,21 @@
       return this.map.creatures.find(creature => creature.id === id)
     }
     calculateCollisions() {
+      const collisionsList = []
       this.map.creatures.forEach((creature) => {
         this.map.creatures.forEach((otherCreature) => {
-          if (creature === otherCreature) return
+          if (creature === otherCreature || collisionsList.includes(creature)) return
           let creatureBound = creature.element.getBoundingClientRect()
           creatureBound.x1 = creatureBound.x + creature.colissionWidth
           creatureBound.y1 = creatureBound.y + creatureBound.height
           let otherCreatureBound = otherCreature.element.getBoundingClientRect()
           otherCreatureBound.x1 = otherCreatureBound.x + otherCreature.colissionWidth
           otherCreatureBound.y1 = otherCreatureBound.y + otherCreatureBound.height
-          creature.colission(this.intersects(creatureBound, otherCreatureBound))
+          const isColission = this.intersects(creatureBound, otherCreatureBound)
+          creature.colission(isColission)
+          if (isColission) {
+            collisionsList.push(creature)
+          }
         })
       })
       // for ()
@@ -222,8 +227,8 @@
     }
     calculateHit(e) {
       const creature = e.target
-      switch (e.type) {
-        case 'hit-right':
+      switch (e.detail.direction) {
+        case 'right':
           this.map.creatures.forEach((otherCreature) => {
             if (creature === otherCreature) return
             let creatureBound = creature.element.getBoundingClientRect()
@@ -254,7 +259,8 @@
       position = 10,
       speed = 6,
       attackWidth = 0,
-      damage = 0
+      damage = 0,
+      direction = 'left'
     } = {}) {
 
       super();
@@ -266,10 +272,16 @@
       this.colissionInfo = {x: 0, y: 0};
       this.speed = speed;
       this.position = position;
+      this.direction = direction;
       this.hitPoints = 50;
       this.element = null;
+      this.npc = true;
+      this.ai = {
+        counter: 0
+      }
       // this.map = null;
       this.setCharElement();
+      this.setDirection(direction);
       // this.minPosition = 6;
       // this.maxPosition = (this.map.width - 6 - this.width * 2);
       this.minPosition = 6;
@@ -306,11 +318,24 @@
       this.element.attributeStyleMap.set('bottom', CSS.px(6))
       this.element.addEventListener('animationiteration', this.onAnimationIteration.bind(this))
       this.element.addEventListener('animationend', this.onAnimationIteration.bind(this))
+      this.element.dataset.direction = this.direction
+    }
+    setDirectionLeft() {
+      this.setDirection('left')
+    }
+    setDirectionRight() {
+      this.setDirection('right')
+    }
+    setDirection(direction) {
+      if (! this.element) return
+      this.direction = direction
+      this.element.dataset.direction = this.direction
     }
     onAnimationIteration(e) {
-      switch (e.animationName) {
-        case 'attack-right':
-          this.dispatchEvent(new CustomEvent('hit-right', { detail: { damage: this.damage } }));
+      let type = e.animationName.split('-')[0]
+      switch (type) {
+        case 'attack':
+          this.dispatchEvent(new CustomEvent('hit', { detail: { direction: this.direction, damage: this.damage } }));
           break;
         case 'damaged':
           if (!this.element) return
@@ -373,26 +398,49 @@
         }
     }
     onAction() {
+      if (this.npc) {
+        this.aiController()
+      }
       switch (this.actionValue) {
-        case 'attack-right':
+        case 'attack':
 
           break;
-        case 'walk-right':
-          this.walkRight()
-          break;
-        case 'walk-left':
-          this.walkLeft()
+        case 'walk':
+          switch (this.direction) {
+            case 'left':
+              this.walkLeft()
+              break;
+            case 'right':
+              this.walkRight()
+              break;
+          }
           break;
         default:
           break;
       }
       this.updateCharElement()
     }
+
+    aiController() {
+      // Нужно следить кто находится слева, а кто справа, так же учитывать
+      // расстояние
+      // Если враг, идти к врагу и атаковать. Если друг, просто ходить
+      // Если крайний идёт к врагу, тоже идти к врагу
+      //
+      // this.ai.counter += 1;
+      // if (this.ai.counter % 100 < 50) {
+      //   this.setDirectionLeft()
+      // } else {
+      //   this.setDirectionRight()
+      // }
+      // this.actionValue = 'walk'
+    }
   }
 
   class Player extends Creature {
     constructor(...args) {
       super(...args);
+      this.npc = false;
       this.isShift = false;
       // this.creatureObject = creatureObject
       this.addEventListener('keydown', this.onKeyDown.bind(this))
@@ -416,17 +464,19 @@
         switch (e.code) {
           case 'ArrowRight':
             // this.creatureObject.moveRight()
-            this.setAction('walk-right')
+            this.setDirectionRight()
+            this.setAction('walk')
           break;
           case 'ArrowDown':
             this.setAction('set-shield')
           break;
           case 'ArrowLeft':
-            this.setAction('walk-left')
+            this.setDirectionLeft()
+            this.setAction('walk')
             // this.creatureObject.setAction('walk-left')
           break;
           case 'Space':
-            this.setAction('attack-right')
+            this.setAction('attack')
           break;
         }
       }
@@ -534,17 +584,26 @@
     return creatures[creatures.length - 1];
   }
 
-  const player = registerPlayer('player', {
+  const player = registerPlayer('knight', {
     colissionWidth: 90,
     damage: 5,
-    attackWidth: 132
+    attackWidth: 132,
+    direction: 'right'
   })
 
-  registerCreature('box', { position: 180 })
+  // registerCreature('box', { position: 180 })
+
+  registerCreature('zombie', {
+    position: 180,
+    colissionWidth: 54,
+    damage: 5,
+    attackWidth: 72,
+    speed: 1.5
+  })
 
   const mainCamera = new Camera(VIEWPORT, {
     map: new Map(creatures),
-    target: 'player'
+    target: 'knight'
   })
   console.log('mainCamera', mainCamera)
 

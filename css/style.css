@@ -111,6 +111,10 @@
   animation: death 0.3s steps(3) infinite;
 }
 
+.creature[data-direction='left']::after {
+  transform: scaleX(-1);
+}
+
 .box {
   width: 42px;
   height: 42px;
@@ -130,22 +134,21 @@
   background-position: 0 0;
 }
 
-.player {
+/* --- Knight ----------------------------------------------------------------- */
+.knight {
   width: 132px;
   height: 78px;
   position: absolute;
-
-  /* left: calc(50% - 45px); */
   bottom: 6px;
 }
 
-.player::after {
+.knight::after {
   content: "";
-  background-image: url("../images/player.png");
+  background-image: url("../images/knight.png");
   background-repeat: no-repeat;
 }
 
-.player[data-action='idle']::after {
+.knight[data-action='idle']::after {
   width: 90px;
   height: 78px;
   position: absolute;
@@ -154,38 +157,78 @@
   background-position: 0 0;
 }
 
-.player[data-action='walk-left']::after,
-.player[data-action='walk-right']::after {
+.knight[data-action='walk']::after {
   width: 90px;
   height: 84px;
   position: absolute;
   left: 0;
   bottom: 0;
   background-position: 0 calc(-78px);
-  animation: walk-right 0.3s steps(2) infinite;
+  animation: walk-knight 0.3s steps(2) infinite;
 }
 
-.player[data-action='walk-left']::after {
-  transform: scaleX(-1);
-}
-
-.player[data-action='attack-right']::after {
+.knight[data-action='attack']::after {
   width: 132px;
   height: 102px;
   position: absolute;
   left: 0;
   bottom: 0;
   background-position: 0 -168px;
-  animation: attack-right 0.3s steps(3) infinite;
+  animation: attack-knight 0.3s steps(3) infinite;
 }
 
-.player[data-action='set-shield']::after {
+.knight[data-action='set-shield']::after {
   width: 78px;
   height: 78px;
   position: absolute;
   left: 0;
   bottom: 0;
   background-position: 0 -276px;
+}
+
+/* --- Zombie ----------------------------------------------------------------- */
+
+.zombie {
+  width: 66px;
+  height: 72px;
+  position: absolute;
+  bottom: 6px;
+}
+
+.zombie::after {
+  content: "";
+  background-image: url("../images/zombie.png");
+  background-repeat: no-repeat;
+}
+
+.zombie[data-action='idle']::after {
+  width: 66px;
+  height: 72px;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  background-position: 0 0;
+  animation: idle-zombie 1.2s steps(4) infinite;
+}
+
+.zombie[data-action='walk']::after {
+  width: 72px;
+  height: 72px;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  background-position: 0 -78px;
+  animation: walk-zombie 1.2s steps(4) infinite;
+}
+
+.zombie[data-action='attack']::after {
+  width: 72px;
+  height: 72px;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  background-position: 0 -156px;
+  animation: attack-zombie 0.6s steps(3) infinite;
 }
 
 .room {
@@ -204,12 +247,12 @@
   border-right: 6px solid #000;
 }
 
-@keyframes walk-right {
+@keyframes walk-knight {
   0% { background-position-x: 0; }
   100% { background-position-x: -180px; }
 }
 
-@keyframes attack-right {
+@keyframes attack-knight {
   0% { background-position-x: 0; }
   100% { background-position-x: -396px; }
 }
@@ -222,6 +265,21 @@
 @keyframes death {
   0% { background-position-x: 0; }
   100% { background-position-x: -108px; }
+}
+
+@keyframes idle-zombie {
+  0% { background-position-x: 0; }
+  100% { background-position-x: -264px; }
+}
+
+@keyframes walk-zombie {
+  0% { background-position-x: 0; }
+  100% { background-position-x: -288px; }
+}
+
+@keyframes attack-zombie {
+  0% { background-position-x: 0; }
+  100% { background-position-x: -216px; }
 }
 
 @media (hover: none) {
