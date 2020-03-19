@@ -3,6 +3,15 @@
   const VIEWPORT = document.getElementById('viewport')
   const LOGBOX = document.getElementById('logbox')
 
+  class SharedMethods {
+    static intersects(a, b) {
+      return {
+        x: (a.x1 >= b.x && a.x1 <= b.x1) ? 1 : (a.x >= b.x && a.x <= b.x1) ? -1 : 0,
+        y: 0
+      }
+    }
+  }
+
   class Camera extends EventTarget {
     constructor(viewport, options) {
       super();
@@ -36,18 +45,20 @@
       }
 
       this.timer = null;
-      this.rps = 10 || 24; // redraw per second
+      this.rps = 60; // redraw per second
       this.freeMove = false;
       this.elements = [];
       this.setCameraPosition();
-      this.draw();
+      this.mainLoop();
       this.calculates();
       this.addEventListener('keydown', this.onKeyDown.bind(this))
       this.addEventListener('keyup', this.onKeyUp.bind(this))
       this.motor();
     }
-    draw () {
-      this.calculateCollisions()
+    mainLoop () {
+      // this.calculateCollisions()
+
+      this.map.loop();
 
       if (this.map && ! this.elements.length) {
         const fragment = document.createDocumentFragment();
@@ -58,6 +69,7 @@
         });
         this.viewport.appendChild(fragment);
       }
+
       for (const element of this.elements) {
         const leftStyle = element.attributeStyleMap.get('margin-left') || { value: 0 }
         element.attributeStyleMap.set('margin-left', CSS.px(
@@ -152,10 +164,15 @@
       if (this.position.y > this.bounds.ymax) {
         this.position.y = this.bounds.ymax;
       }
-      this.draw();
+      this.mainLoop();
     }
     getTargetPosition() {
-      return this.target ? this.target.getPosition() : 0
+      const mapOffset = this.map.getOffset();
+      let targetPosition = {x: 0, y: 0};
+      if (this.target) {
+        targetPosition = this.target.getPosition()
+      }
+      return {x: mapOffset.left + targetPosition.x, y: mapOffset.top + targetPosition.y}
     }
     onKeyDown(e) {
       switch (e.code) {
@@ -195,27 +212,6 @@
       if (! id || ! this.map) return null
       return this.map.creatures.find(creature => creature.id === id)
     }
-    calculateCollisions() {
-      const collisionsList = []
-      this.map.creatures.forEach((creature) => {
-        this.map.creatures.forEach((otherCreature) => {
-          if (creature === otherCreature || collisionsList.includes(creature)) return
-          let creatureBound = creature.element.getBoundingClientRect()
-          creatureBound.x1 = creatureBound.x + creature.colissionWidth
-          creatureBound.y1 = creatureBound.y + creatureBound.height
-          let otherCreatureBound = otherCreature.element.getBoundingClientRect()
-          otherCreatureBound.x1 = otherCreatureBound.x + otherCreature.colissionWidth
-          otherCreatureBound.y1 = otherCreatureBound.y + otherCreatureBound.height
-          const isColission = this.intersects(creatureBound, otherCreatureBound)
-          creature.colission(isColission)
-          if (isColission) {
-            collisionsList.push(creature)
-          }
-        })
-      })
-      // for ()
-      // console.log('calculateCollisions')
-    }
     removeCreature(e) {
       const creature = e.target
       this.map.creatures.forEach((otherCreature, index) => {
@@ -237,7 +233,7 @@
             let otherCreatureBound = otherCreature.element.getBoundingClientRect()
             otherCreatureBound.x1 = otherCreatureBound.x + otherCreature.colissionWidth
             otherCreatureBound.y1 = otherCreatureBound.y + otherCreatureBound.height
-            const colission = this.intersects(creatureBound, otherCreatureBound)
+            const colission = SharedMethods.intersects(creatureBound, otherCreatureBound)
             if (colission.x > 0) {
               otherCreature.hit(e.detail.damage)
             }
@@ -245,22 +241,12 @@
         break;
       }
     }
-    intersects(a, b){
-      return {
-        x: (a.x1 >= b.x && a.x1 <= b.x1) ? 1 : (a.x >= b.x && a.x <= b.x1) ? -1 : 0,
-        y: 0
-      }
-    }
   }
 
   class Creature extends EventTarget {
     constructor(id, {
-      colissionWidth = 42,
-      position = 10,
-      speed = 6,
-      attackWidth = 0,
-      damage = 0,
-      direction = 'left'
+      colissionWidth = 42, position = 10, speed = 0, attackWidth = 0,
+      group = 0, damage = 0, direction = 'left'
     } = {}) {
 
       super();
@@ -273,11 +259,18 @@
       this.speed = speed;
       this.position = position;
       this.direction = direction;
+      this.group = group; // 0 - neutral; 1 - player; 2 - aggressive to player; 3 - aggressive to all
       this.hitPoints = 50;
       this.element = null;
       this.npc = true;
+      this.neighbors = {
+        left: null,
+        right: null
+      }
       this.ai = {
-        counter: 0
+        counter: 0,
+        // behavior: 'walking',
+        mode: 'idle'
       }
       // this.map = null;
       this.setCharElement();
@@ -295,16 +288,16 @@
     // get offsetLeft(){
     //   return this.element.offsetLeft
     // }
-    colission(val) {
-      this.colissionInfo = val;
-      if (! this.element) return
-      if (val.x || val.y) {
-        this.element.classList.add('colission')
-      } else {
-        this.element.classList.remove('colission')
-      }
+    // colission(val) {
+    //   this.colissionInfo = val;
+    //   if (! this.element) return
+    //   if (val.x || val.y) {
+    //     this.element.classList.add('colission')
+    //   } else {
+    //     this.element.classList.remove('colission')
+    //   }
+    // }
 
-    }
     get width() {
       const result = this.element ? this.element.computedStyleMap().get('width') : null
       return result ? result.value : 0
@@ -366,11 +359,69 @@
       this.element.attributeStyleMap.set('left', CSS.px(this.position))
       this.element.dataset.action = this.actionValue;
     }
+
+    isColission(colissionWidth = 0) {
+      if (this.neighbors[this.direction] === null) return false
+      let creatureBound = this.element.getBoundingClientRect()
+      creatureBound.x1 = creatureBound.x + colissionWidth || this.colissionWidth
+      // creatureBound.y1 = creatureBound.y + creatureBound.height
+      const otherCreature = this.neighbors[this.direction].creature
+      let otherCreatureBound = otherCreature.element.getBoundingClientRect()
+      otherCreatureBound.x1 = otherCreatureBound.x + otherCreature.colissionWidth
+      // otherCreatureBound.y1 = otherCreatureBound.y + otherCreatureBound.height
+      const isIntersect = SharedMethods.intersects(creatureBound, otherCreatureBound)
+      // Only horizontal
+      return isIntersect.x
+    }
+
+    updateNeihbors(creatures) {
+      this.neighbors.left = null
+      this.neighbors.right = null
+
+      for (const otherCreature of creatures) {
+        if (this === otherCreature) continue
+        // if (
+        //   this.neighbors.left !== null
+        //   && this.neighbors.right !== null
+        // ) {
+        //   break;
+        // }
+
+        const leftDistance = this.position - otherCreature.position;
+        const rightDistance = otherCreature.position - this.position;
+        otherCreature.position - this.position
+
+        if (
+          otherCreature.position < this.position
+          && (
+            this.neighbors.left === null
+            || leftDistance < this.neighbors.left.distance
+          )
+        ) {
+          this.neighbors.left = {
+            distance: leftDistance,
+            creature: otherCreature
+          }
+        } else if (
+          otherCreature.position >= this.position
+          && (
+            this.neighbors.right === null
+            || rightDistance < this.neighbors.right.distance
+          )
+        ) {
+          this.neighbors.right = {
+            distance: rightDistance,
+            creature: otherCreature
+          }
+        }
+      }
+      if (this.id === 'knight') {
+        console.log('left', this.neighbors.left, this.neighbors.right)
+      }
+    }
     getPosition() {
       if (! this.element) return {x: 0, y: 0}
-      // const offset = this.map.getOffset()
-      const offset = {left: 0, top: 0};
-      return { x: offset.left + parseInt(this.element.offsetLeft, 10), y: offset.top + parseInt(this.element.offsetTop, 10) }
+      return { x: parseInt(this.element.offsetLeft, 10), y: parseInt(this.element.offsetTop, 10) }
     }
     setAction(action) {
       // this.action = action;
@@ -382,25 +433,15 @@
       this.actionValue = 'idle';
     }
     walkRight() {
-      if (this.colissionInfo.x > 0) return
+      if (this.isColission()) return
       this.position += this.speed;
-      // this.maxPosition = (this.map.width - 6 - this.width);
-      this.maxPosition = 500;
-      if (this.position > this.maxPosition) {
-        this.position = this.maxPosition;
-      }
     }
     walkLeft() {
-      if (this.colissionInfo.x < 0) return
-        this.position -= this.speed;
-        if (this.position < this.minPosition) {
-          this.position = this.minPosition;
-        }
+      if (this.isColission()) return
+      this.position -= this.speed;
     }
     onAction() {
-      if (this.npc) {
-        this.aiController()
-      }
+      if (this.npc) this.aiController()
       switch (this.actionValue) {
         case 'attack':
 
@@ -422,26 +463,65 @@
     }
 
     aiController() {
+      if (this.hitPoints <= 0 || this.actionValue === 'death') return
       // Нужно следить кто находится слева, а кто справа, так же учитывать
       // расстояние
       // Если враг, идти к врагу и атаковать. Если друг, просто ходить
       // Если крайний идёт к врагу, тоже идти к врагу
-      //
-      // this.ai.counter += 1;
-      // if (this.ai.counter % 100 < 50) {
-      //   this.setDirectionLeft()
-      // } else {
-      //   this.setDirectionRight()
-      // }
-      // this.actionValue = 'walk'
+
+      const neighbor = this.neighbors[this.direction];
+      switch (this.ai.mode) {
+        case 'attack':
+          this.setAction('attack')
+          this.ai.mode = 'idle'
+          return
+        break;
+        case 'move':
+          if (neighbor === null || neighbor.distance > 100) {
+            this.ai.mode = 'idle'
+            return
+          } else if (neighbor.distance <= this.attackWidth) {
+            this.ai.mode = 'attack'
+            return
+          } else {
+            this.setAction('walk')
+          }
+        break;
+        case 'idle':
+
+          if (
+            neighbor !== null
+            && neighbor.distance <= 100
+            &&
+            (
+              (neighbor.creature.group === 1) || (this.group === 3 && neighbor.creature.group !== 3)
+            )
+          ) {
+            this.ai.mode = 'move'
+            return
+          }
+
+          this.ai.counter += 1;
+          if (this.ai.counter % 100 < 50) {
+            this.setDirectionLeft()
+          } else {
+            this.setDirectionRight()
+          }
+
+          this.setAction('walk')
+
+        break;
+      }
     }
   }
 
   class Player extends Creature {
     constructor(...args) {
       super(...args);
+      this.group = 1;
       this.npc = false;
       this.isShift = false;
+      ;
       // this.creatureObject = creatureObject
       this.addEventListener('keydown', this.onKeyDown.bind(this))
       this.addEventListener('keyup', this.onKeyUp.bind(this))
@@ -536,6 +616,12 @@
       this.creatures = creatures;
       this.draw();
     }
+    loop() {
+      this.setCreaturesNeighbor()
+    }
+    setCreaturesNeighbor() {
+      this.creatures.forEach(creature => creature.updateNeihbors(this.creatures))
+    }
     draw() {
       let maxWidth = 0;
       // const fragment = document.createDocumentFragment()
@@ -584,21 +670,26 @@
     return creatures[creatures.length - 1];
   }
 
-  const player = registerPlayer('knight', {
-    colissionWidth: 90,
-    damage: 5,
-    attackWidth: 132,
-    direction: 'right'
-  })
-
-  // registerCreature('box', { position: 180 })
+  const player = null
+  // registerPlayer('knight', {
+  //   colissionWidth: 90,
+  //   damage: 5,
+  //   attackWidth: 132,
+  //   direction: 'right'
+  // })
+  registerCreature('wall', {
+    position: -40,
+    colissionWidth: 50
+   })
+  registerCreature('box', { position: 250 })
 
   registerCreature('zombie', {
     position: 180,
     colissionWidth: 54,
     damage: 5,
     attackWidth: 72,
-    speed: 1.5
+    speed: 1.5,
+    group: 3
   })
 
   const mainCamera = new Camera(VIEWPORT, {

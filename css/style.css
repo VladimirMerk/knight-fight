@@ -95,6 +95,10 @@
 /* filter: invert(1); */
 
 /* } */
+.creature {
+  position: absolute;
+  bottom: 6px;
+}
 
 .creature.damaged {
   animation: damaged 0.1s steps(2);
@@ -118,8 +122,6 @@
 .box {
   width: 42px;
   height: 42px;
-  position: absolute;
-  bottom: 6px;
 }
 
 .box::after {
@@ -138,8 +140,6 @@
 .knight {
   width: 132px;
   height: 78px;
-  position: absolute;
-  bottom: 6px;
 }
 
 .knight::after {
@@ -191,8 +191,6 @@
 .zombie {
   width: 66px;
   height: 72px;
-  position: absolute;
-  bottom: 6px;
 }
 
 .zombie::after {
