@@ -1,726 +1,79 @@
 'use strict';
+import Camera from './camera';
+import Creature from './creature';
+import Player from './player';
+import Level from './level';
+
 (() => {
-  const VIEWPORT = document.getElementById('viewport')
-  const LOGBOX = document.getElementById('logbox')
+  const VIEWPORT = document.getElementById('viewport');
+  const LOGBOX = document.getElementById('logbox');
+  const creatures = [];
 
-  class SharedMethods {
-    static intersects(a, b) {
-      return {
-        x: (a.x1 >= b.x && a.x1 <= b.x1) ? 1 : (a.x >= b.x && a.x <= b.x1) ? -1 : 0,
-        y: 0
-      }
-    }
-  }
-
-  class Camera extends EventTarget {
-    constructor(viewport, options) {
-      super();
-      this.viewport = viewport;
-      this.position = {
-        x: 0,
-        y: 0
-      }
-      this.velocity = {
-        x: 0,
-        y: 0
-      }
-      this.bounds = {
-        xmin: (this.viewport.offsetWidth / 2),
-        ymin: (this.viewport.offsetHeight / 2),
-        xmax: 0,
-        ymax: 0
-      }
-      // this.objects = options.objects;
-      this.map = options.map;
-      this.target = this.findTargetById(options.target);
-
-      if (this.map) {
-        this.bounds.xmax = this.map.width - (this.viewport.offsetWidth / 2) + 6;
-        this.bounds.ymax = this.map.height - (this.viewport.offsetHeight / 2) + 6;
-        this.position.y = (this.map.height / 2);
-        this.map.creatures.forEach(creature => {
-          creature.addEventListener('hit', this.calculateHit.bind(this))
-          creature.addEventListener('death', this.removeCreature.bind(this))
-        });
-      }
-
-      this.timer = null;
-      this.rps = 60; // redraw per second
-      this.freeMove = false;
-      this.elements = [];
-      this.setCameraPosition();
-      this.mainLoop();
-      this.calculates();
-      this.addEventListener('keydown', this.onKeyDown.bind(this))
-      this.addEventListener('keyup', this.onKeyUp.bind(this))
-      this.motor();
-    }
-    mainLoop () {
-      // this.calculateCollisions()
-
-      this.map.loop();
-
-      if (this.map && ! this.elements.length) {
-        const fragment = document.createDocumentFragment();
-        this.viewport.innerHTML = "";
-        this.map.draw().forEach(element => {
-          fragment.appendChild(element)
-          this.elements.push(element)
-        });
-        this.viewport.appendChild(fragment);
-      }
-
-      for (const element of this.elements) {
-        const leftStyle = element.attributeStyleMap.get('margin-left') || { value: 0 }
-        element.attributeStyleMap.set('margin-left', CSS.px(
-           - this.position.x + (this.viewport.offsetWidth / 2)
-        ));
-        const topStyle = element.attributeStyleMap.get('margin-top') || { value: 0 }
-        element.attributeStyleMap.set('margin-top', CSS.px(
-           - this.position.y + (this.viewport.offsetHeight / 2)
-        ));
-      }
-    }
-    calculates () {
-      toLog(`width: ${this.viewport.offsetWidth};\
-             height: ${this.viewport.offsetHeight};\
-             x: ${this.position.x};\
-             y: ${this.position.y};`);
-    }
-    motor () {
-      setInterval(() => {
-        this.setCameraPosition()
-      }, 1000 / this.rps);
-    }
-    stop () {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-    move(direction) {
-      switch(direction) {
-        case 'up':
-          this.velocity.x = 0;
-          if (this.velocity.y > 0) {
-            this.velocity.y = 0;
-          }
-          this.velocity.y -= 2;
-        break;
-        case 'down':
-          this.velocity.x = 0;
-          if (this.velocity.y < 0) {
-            this.velocity.y = 0;
-          }
-          this.velocity.y += 2;
-        break;
-        case 'right':
-          this.velocity.y = 0;
-          if (this.velocity.x < 0) {
-            this.velocity.x = 0;
-          }
-          this.velocity.x += 2;
-        break;
-        case 'left':
-          this.velocity.y = 0;
-          if (this.velocity.x > 0) {
-            this.velocity.x = 0;
-          }
-          this.velocity.x -= 2;
-        break;
-      }
-    }
-    slowDownVelocity() {
-      if (this.velocity.x > 0) {
-        this.velocity.x -= .1;
-        if (this.velocity.x < 1) {
-          this.velocity.x = 0;
-        }
-      } else if (this.velocity.x < 0) {
-        this.velocity.x += .1;
-        if (this.velocity.x > -1) {
-          this.velocity.x = 0;
-        }
-      }
-    }
-    setCameraPosition() {
-
-      if (this.freeMove) {
-        this.position.x += this.velocity.x
-        this.position.y += this.velocity.y
-        this.slowDownVelocity()
-      } else if (this.target) {
-        this.position = this.getTargetPosition()
-        // console.log(this.position)
-      }
-
-      if (this.position.x < this.bounds.xmin) {
-        this.position.x = this.bounds.xmin;
-      }
-      if (this.position.x > this.bounds.xmax) {
-        this.position.x = this.bounds.xmax;
-      }
-      if (this.position.y < this.bounds.ymin) {
-        this.position.y = this.bounds.ymin;
-      }
-      if (this.position.y > this.bounds.ymax) {
-        this.position.y = this.bounds.ymax;
-      }
-      this.mainLoop();
-    }
-    getTargetPosition() {
-      const mapOffset = this.map.getOffset();
-      let targetPosition = {x: 0, y: 0};
-      if (this.target) {
-        targetPosition = this.target.getPosition()
-      }
-      return {x: mapOffset.left + targetPosition.x, y: mapOffset.top + targetPosition.y}
-    }
-    onKeyDown(e) {
-      switch (e.code) {
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          this.freeMove = true;
-        break;
-      }
-      if (this.freeMove) {
-        switch (e.code) {
-          case 'ArrowUp':
-            this.move('up')
-          break;
-          case 'ArrowRight':
-            this.move('right')
-          break;
-          case 'ArrowDown':
-            this.move('down')
-          break;
-          case 'ArrowLeft':
-            this.move('left')
-          break;
-        }
-      }
-    }
-    onKeyUp(e) {
-      switch (e.code) {
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          this.freeMove = false;
-          this.velocity.x = 0;
-          this.velocity.y = 0;
-        break;
-      }
-    }
-    findTargetById(id) {
-      if (! id || ! this.map) return null
-      return this.map.creatures.find(creature => creature.id === id)
-    }
-    removeCreature(e) {
-      const creature = e.target
-      this.map.creatures.forEach((otherCreature, index) => {
-        if (creature === otherCreature) {
-          toLog(`${otherCreature.id} is killed`)
-          this.map.creatures.splice(index, 1)
-        }
-      })
-    }
-    calculateHit(e) {
-      const creature = e.target
-      switch (e.detail.direction) {
-        case 'right':
-          this.map.creatures.forEach((otherCreature) => {
-            if (creature === otherCreature) return
-            let creatureBound = creature.element.getBoundingClientRect()
-            creatureBound.x1 = creatureBound.x + creature.attackWidth
-            creatureBound.y1 = creatureBound.y + creatureBound.height
-            let otherCreatureBound = otherCreature.element.getBoundingClientRect()
-            otherCreatureBound.x1 = otherCreatureBound.x + otherCreature.colissionWidth
-            otherCreatureBound.y1 = otherCreatureBound.y + otherCreatureBound.height
-            const colission = SharedMethods.intersects(creatureBound, otherCreatureBound)
-            if (colission.x > 0) {
-              otherCreature.hit(e.detail.damage)
-            }
-          })
-        break;
-      }
-    }
-  }
-
-  class Creature extends EventTarget {
-    constructor(id, {
-      colissionWidth = 42, position = 10, speed = 0, attackWidth = 0,
-      group = 0, damage = 0, direction = 'left'
-    } = {}) {
-
-      super();
-      this.id = id;
-      this.actionValue = 'idle';
-      this.colissionWidth = colissionWidth;
-      this.attackWidth = attackWidth;
-      this.damage = damage;
-      this.colissionInfo = {x: 0, y: 0};
-      this.speed = speed;
-      this.position = position;
-      this.direction = direction;
-      this.group = group; // 0 - neutral; 1 - player; 2 - aggressive to player; 3 - aggressive to all
-      this.hitPoints = 50;
-      this.element = null;
-      this.npc = true;
-      this.neighbors = {
-        left: null,
-        right: null
-      }
-      this.ai = {
-        counter: 0,
-        // behavior: 'walking',
-        mode: 'idle'
-      }
-      // this.map = null;
-      this.setCharElement();
-      this.setDirection(direction);
-      // this.minPosition = 6;
-      // this.maxPosition = (this.map.width - 6 - this.width * 2);
-      this.minPosition = 6;
-      this.maxPosition = 500;
-      this.actionTimer = setInterval(this.onAction.bind(this), 50);
-    }
-    // get left(){
-    //   const result = this.element.attributeStyleMap.get('left')
-    //   return result ? result.value : 0
-    // }
-    // get offsetLeft(){
-    //   return this.element.offsetLeft
-    // }
-    // colission(val) {
-    //   this.colissionInfo = val;
-    //   if (! this.element) return
-    //   if (val.x || val.y) {
-    //     this.element.classList.add('colission')
-    //   } else {
-    //     this.element.classList.remove('colission')
-    //   }
-    // }
-
-    get width() {
-      const result = this.element ? this.element.computedStyleMap().get('width') : null
-      return result ? result.value : 0
-    }
-    setCharElement() {
-      this.element = document.createElement('div')
-      this.element.classList.add('creature')
-      this.element.classList.add(this.id)
-      // this.element.setAttribute('id', this.id)
-      this.element.attributeStyleMap.set('left', CSS.px(this.position))
-      this.element.attributeStyleMap.set('bottom', CSS.px(6))
-      this.element.addEventListener('animationiteration', this.onAnimationIteration.bind(this))
-      this.element.addEventListener('animationend', this.onAnimationIteration.bind(this))
-      this.element.dataset.direction = this.direction
-    }
-    setDirectionLeft() {
-      this.setDirection('left')
-    }
-    setDirectionRight() {
-      this.setDirection('right')
-    }
-    setDirection(direction) {
-      if (! this.element) return
-      this.direction = direction
-      this.element.dataset.direction = this.direction
-    }
-    onAnimationIteration(e) {
-      let type = e.animationName.split('-')[0]
-      switch (type) {
-        case 'attack':
-          this.dispatchEvent(new CustomEvent('hit', { detail: { direction: this.direction, damage: this.damage } }));
-          break;
-        case 'damaged':
-          if (!this.element) return
-          this.element.classList.remove('damaged')
-          break;
-        case 'death':
-          this.element.remove();
-          this.dispatchEvent(new CustomEvent('death'));
-          break;
-      }
-      // console.log('Animation end', e)
-    }
-    hit(damage) {
-      toLog(`hit on ${this.id} at ${damage}HP`)
-      this.hitPoints -= damage;
-      if (this.hitPoints <= 0) {
-        this.setAction('death')
-      } else {
-        if (! this.element) return
-        this.element.classList.add('damaged')
-      }
-    }
-    draw() {
-      return [this.element];
-    }
-    updateCharElement() {
-      if (! this.element) return
-      this.element.attributeStyleMap.set('left', CSS.px(this.position))
-      this.element.dataset.action = this.actionValue;
-    }
-
-    isColission(colissionWidth = 0) {
-      if (this.neighbors[this.direction] === null) return false
-      let creatureBound = this.element.getBoundingClientRect()
-      creatureBound.x1 = creatureBound.x + colissionWidth || this.colissionWidth
-      // creatureBound.y1 = creatureBound.y + creatureBound.height
-      const otherCreature = this.neighbors[this.direction].creature
-      let otherCreatureBound = otherCreature.element.getBoundingClientRect()
-      otherCreatureBound.x1 = otherCreatureBound.x + otherCreature.colissionWidth
-      // otherCreatureBound.y1 = otherCreatureBound.y + otherCreatureBound.height
-      const isIntersect = SharedMethods.intersects(creatureBound, otherCreatureBound)
-      // Only horizontal
-      return isIntersect.x
-    }
-
-    updateNeihbors(creatures) {
-      this.neighbors.left = null
-      this.neighbors.right = null
-
-      for (const otherCreature of creatures) {
-        if (this === otherCreature) continue
-        // if (
-        //   this.neighbors.left !== null
-        //   && this.neighbors.right !== null
-        // ) {
-        //   break;
-        // }
-
-        const leftDistance = this.position - otherCreature.position;
-        const rightDistance = otherCreature.position - this.position;
-        otherCreature.position - this.position
-
-        if (
-          otherCreature.position < this.position
-          && (
-            this.neighbors.left === null
-            || leftDistance < this.neighbors.left.distance
-          )
-        ) {
-          this.neighbors.left = {
-            distance: leftDistance,
-            creature: otherCreature
-          }
-        } else if (
-          otherCreature.position >= this.position
-          && (
-            this.neighbors.right === null
-            || rightDistance < this.neighbors.right.distance
-          )
-        ) {
-          this.neighbors.right = {
-            distance: rightDistance,
-            creature: otherCreature
-          }
-        }
-      }
-      if (this.id === 'knight') {
-        console.log('left', this.neighbors.left, this.neighbors.right)
-      }
-    }
-    getPosition() {
-      if (! this.element) return {x: 0, y: 0}
-      return { x: parseInt(this.element.offsetLeft, 10), y: parseInt(this.element.offsetTop, 10) }
-    }
-    setAction(action) {
-      // this.action = action;
-      if (action !== this.actionValue) {
-        this.actionValue = action
-      }
-    }
-    releaseAction() {
-      this.actionValue = 'idle';
-    }
-    walkRight() {
-      if (this.isColission()) return
-      this.position += this.speed;
-    }
-    walkLeft() {
-      if (this.isColission()) return
-      this.position -= this.speed;
-    }
-    onAction() {
-      if (this.npc) this.aiController()
-      switch (this.actionValue) {
-        case 'attack':
-
-          break;
-        case 'walk':
-          switch (this.direction) {
-            case 'left':
-              this.walkLeft()
-              break;
-            case 'right':
-              this.walkRight()
-              break;
-          }
-          break;
-        default:
-          break;
-      }
-      this.updateCharElement()
-    }
-
-    aiController() {
-      if (this.hitPoints <= 0 || this.actionValue === 'death') return
-      // Нужно следить кто находится слева, а кто справа, так же учитывать
-      // расстояние
-      // Если враг, идти к врагу и атаковать. Если друг, просто ходить
-      // Если крайний идёт к врагу, тоже идти к врагу
-
-      const neighbor = this.neighbors[this.direction];
-      switch (this.ai.mode) {
-        case 'attack':
-          this.setAction('attack')
-          this.ai.mode = 'idle'
-          return
-        break;
-        case 'move':
-          if (neighbor === null || neighbor.distance > 100) {
-            this.ai.mode = 'idle'
-            return
-          } else if (neighbor.distance <= this.attackWidth) {
-            this.ai.mode = 'attack'
-            return
-          } else {
-            this.setAction('walk')
-          }
-        break;
-        case 'idle':
-
-          if (
-            neighbor !== null
-            && neighbor.distance <= 100
-            &&
-            (
-              (neighbor.creature.group === 1) || (this.group === 3 && neighbor.creature.group !== 3)
-            )
-          ) {
-            this.ai.mode = 'move'
-            return
-          }
-
-          this.ai.counter += 1;
-          if (this.ai.counter % 100 < 50) {
-            this.setDirectionLeft()
-          } else {
-            this.setDirectionRight()
-          }
-
-          this.setAction('walk')
-
-        break;
-      }
-    }
-  }
-
-  class Player extends Creature {
-    constructor(...args) {
-      super(...args);
-      this.group = 1;
-      this.npc = false;
-      this.isShift = false;
-      ;
-      // this.creatureObject = creatureObject
-      this.addEventListener('keydown', this.onKeyDown.bind(this))
-      this.addEventListener('keyup', this.onKeyUp.bind(this))
-    }
-    // draw () {
-      // return this.creatureObject.draw()
-    // }
-    // getPosition () {
-      // return this.creatureObject.getPosition()
-    // }
-    onKeyDown(e) {
-      // console.log('onKeyDown', e)
-      switch (e.code) {
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          this.isShift = true;
-        break;
-      }
-      if (! this.isShift) {
-        switch (e.code) {
-          case 'ArrowRight':
-            // this.creatureObject.moveRight()
-            this.setDirectionRight()
-            this.setAction('walk')
-          break;
-          case 'ArrowDown':
-            this.setAction('set-shield')
-          break;
-          case 'ArrowLeft':
-            this.setDirectionLeft()
-            this.setAction('walk')
-            // this.creatureObject.setAction('walk-left')
-          break;
-          case 'Space':
-            this.setAction('attack')
-          break;
-        }
-      }
-    }
-    onKeyUp(e) {
-      this.releaseAction()
-      switch (e.code) {
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          this.isShift = false;
-        break;
-      }
-    }
-  }
-
-  class Room {
-    constructor() {
-      this.height = 300;
-      this.width = 500;
-      this.element = this.create();
-      this.objects = null;
-      this.generationDecorations();
-    }
-    create() {
-      const element = document.createElement('div');
-      element.classList.add('room');
-      element.attributeStyleMap.set('width', CSS.px(this.width));
-      element.attributeStyleMap.set('height', CSS.px(this.height));
-      return element;
-    }
-    generationDecorations() {
-      for(let i = 0; i < Math.floor((this.width - 100) / 300); i++) {
-        const element = document.createElement('div');
-        element.classList.add('сhandelier');
-        element.attributeStyleMap.set('left', CSS.px(300 + (i * 90)));
-        this.element.appendChild(element)
-      }
-
-      for(let i = 0; i < Math.floor((this.width - 100) / 300); i++) {
-        const element = document.createElement('div');
-        element.classList.add('window');
-        element.attributeStyleMap.set('left', CSS.px(100 + (i * 90)));
-        element.attributeStyleMap.set('top', CSS.px(this.height / 2 - 100));
-        this.element.appendChild(element)
-      }
-    }
-    draw() {
-      return this.element;
-    }
-  }
-
-  class Map {
-    constructor(creatures) {
-      this.rooms = [new Room(), new Room(), new Room(), new Room()]
-      this.width = 0;
-      this.height = 0;
-      this.creatures = creatures;
-      this.draw();
-    }
-    loop() {
-      this.setCreaturesNeighbor()
-    }
-    setCreaturesNeighbor() {
-      this.creatures.forEach(creature => creature.updateNeihbors(this.creatures))
-    }
-    draw() {
-      let maxWidth = 0;
-      // const fragment = document.createDocumentFragment()
-      const elements = []
-      for (const [index, room] of this.rooms.entries()) {
-        const roomElement = room.draw();
-        if (index === 0) {
-          roomElement.classList.add('left-wall');
-        }
-        if (index === this.rooms.length - 1){
-          roomElement.classList.add('right-wall');
-        }
-        roomElement.attributeStyleMap.set('left', CSS.px(maxWidth));
-        // fragment.appendChild(roomElement);
-        elements.push(roomElement);
-        maxWidth += room.width;
-
-        this.height = this.height < room.height ? room.height : this.height;
-      }
-      this.height += 6;
-      this.width = maxWidth;
-
-      for (const creature of Object.values(this.creatures)) {
-        creature.draw().forEach(element => {
-          elements.push(element)
-        });
-      }
-
-      return elements;
-    }
-    getOffset() {
-      return {
-        left: Math.abs(parseInt(this.rooms[0].element.offsetLeft) || 0),
-        top:  Math.abs(parseInt(this.rooms[0].element.offsetTop) || 0),
-      }
-    }
-  }
-
-  const creatures = []
   function registerCreature(id, options = {}) {
     creatures.push(new Creature(id, options));
     return creatures[creatures.length - 1];
   }
+
   function registerPlayer(id, options = {}) {
     creatures.push(new Player(id, options));
     return creatures[creatures.length - 1];
   }
 
-  const player = null
-  // registerPlayer('knight', {
-  //   colissionWidth: 90,
-  //   damage: 5,
-  //   attackWidth: 132,
-  //   direction: 'right'
-  // })
+  const player = registerPlayer('knight', {
+    colissionWidth: 90,
+    damage: 5,
+    attackWidth: 132,
+    direction: 'right',
+  });
   registerCreature('wall', {
     position: -40,
-    colissionWidth: 50
-   })
-  registerCreature('box', { position: 250 })
+    colissionWidth: 50,
+  });
+  registerCreature('box', { position: 250 });
 
-  registerCreature('zombie', {
-    position: 180,
-    colissionWidth: 54,
-    damage: 5,
-    attackWidth: 72,
-    speed: 1.5,
-    group: 3
-  })
+  // registerCreature('zombie', {
+  //   position: 180,
+  //   colissionWidth: 54,
+  //   damage: 5,
+  //   attackWidth: 72,
+  //   speed: 1.5,
+  //   group: 3
+  // })
 
+  const level = new Level(creatures);
   const mainCamera = new Camera(VIEWPORT, {
-    map: new Map(creatures),
-    target: 'knight'
-  })
-  console.log('mainCamera', mainCamera)
+    level: level,
+    target: 'knight',
+  });
+  console.log('mainCamera', mainCamera);
 
   // VIEWPORT.appendChild(map.draw())
 
   function onDown(e) {
-  //   if (e.isTrusted) {
-  //     if (e.target.dataset.keycode) {
-  //       e.code = e.target.dataset.keycode
-  //       onKeydown(e)
-  //     }
-  //   }
+    //   if (e.isTrusted) {
+    //     if (e.target.dataset.keycode) {
+    //       e.code = e.target.dataset.keycode
+    //       onKeydown(e)
+    //     }
+    //   }
   }
 
   function onUp(e) {
-  //   if (e.isTrusted) {
-  //     if (e.target.dataset.keycode) {
-  //       e.code = e.target.dataset.keycode
-  //       onKeyup(e)
-  //     }
-  //   }
+    //   if (e.isTrusted) {
+    //     if (e.target.dataset.keycode) {
+    //       e.code = e.target.dataset.keycode
+    //       onKeyup(e)
+    //     }
+    //   }
   }
 
   function onKeydown(e) {
     if (e.isTrusted) {
-      const new_e = new KeyboardEvent("keydown", {bubbles : false, cancelable : false, code : e.code});
+      const new_e = new KeyboardEvent('keydown', {
+        bubbles: false,
+        cancelable: false,
+        code: e.code,
+      });
       mainCamera.dispatchEvent(new_e);
       player.dispatchEvent(new_e);
     }
@@ -728,17 +81,21 @@
 
   function onKeyup(e) {
     if (e.isTrusted) {
-      const new_e = new KeyboardEvent("keyup", {bubbles : false, cancelable : false, code : e.code});
+      const new_e = new KeyboardEvent('keyup', {
+        bubbles: false,
+        cancelable: false,
+        code: e.code,
+      });
       mainCamera.dispatchEvent(new_e);
       player.dispatchEvent(new_e);
     }
   }
 
-  toLog(`Hello! I'm a message console!`)
+  toLog(`Hello! I'm a message console!`);
 
-  document.addEventListener('keydown', onKeydown)
-  document.addEventListener('keyup', onKeyup)
-  //
+  document.addEventListener('keydown', onKeydown);
+  document.addEventListener('keyup', onKeyup);
+
   // document.addEventListener('mousedown', onDown)
   // document.addEventListener('mouseup', onUp)
   //
@@ -746,9 +103,9 @@
   // document.addEventListener('touchend', onUp)
 
   function toLog(...args) {
-    const message = args.map((e) => JSON.stringify(e)).join(" ");
-    LOGBOX.prepend(document.createTextNode(message))
-    LOGBOX.prepend(document.createElement("br"))
+    const message = args.map((e) => JSON.stringify(e)).join(' ');
+    LOGBOX.prepend(document.createTextNode(message));
+    LOGBOX.prepend(document.createElement('br'));
   }
 
   function fromMultiple(...args) {
@@ -768,14 +125,9 @@
           for (const constructor of constructors) {
             Object.assign(Class.prototype, new constructor(...opts));
           }
-
         }
       }
     }
     return Class;
   }
-
-
-
-
-})()
+})();
