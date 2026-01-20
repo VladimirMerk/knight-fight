@@ -1,133 +1,143 @@
 'use strict';
 import Camera from './camera';
-import Creature from './creature';
-import Player from './player';
-import Level from './level';
+import Level from './Level';
+import { initLogger, logGame } from './logger';
 
 (() => {
   const VIEWPORT = document.getElementById('viewport');
   const LOGBOX = document.getElementById('logbox');
-  const creatures = [];
+  // инициализируем игровой логгер
+  initLogger(LOGBOX);
 
-  function registerCreature(id, options = {}) {
-    creatures.push(new Creature(id, options));
-    return creatures[creatures.length - 1];
-  }
-
-  function registerPlayer(id, options = {}) {
-    creatures.push(new Player(id, options));
-    return creatures[creatures.length - 1];
-  }
-
-  const player = registerPlayer('knight', {
-    colissionWidth: 90,
-    damage: 5,
-    attackWidth: 132,
-    direction: 'right',
+  console.log('APP CREATE LEVEL');
+  const level = new Level({
+    rooms: [
+      {
+        id: 'roomWithBox1',
+        type: 'basic',
+        width: 500,
+        height: 300,
+      },
+      {
+        id: 'roomWithBox2',
+        type: 'basic',
+        width: 600,
+        height: 300,
+      },
+      {
+        id: 'room3',
+        type: 'basic',
+        width: 500,
+        height: 300,
+      },
+      {
+        id: 'room4',
+        type: 'basic',
+        width: 600,
+        height: 400,
+      },
+    ],
+    creatures: [
+      {
+        class: 'knight',
+        params: {
+          id: 'knight',
+          group: 1,
+          colissionWidth: 90,
+          damage: 5,
+          attackWidth: 132,
+          direction: 'right',
+          speed: 3,
+        },
+        position: {
+          room: 'roomWithBox1',
+          x: 100,
+          y: 0,
+        },
+      },
+      {
+        // ящик в первой комнате
+        class: 'box',
+        params: {
+          id: 'box-1',
+          group: 0,
+        },
+        position: {
+          room: 'roomWithBox1',
+          x: 250,
+          y: 0,
+        },
+      },
+      {
+        // зомби-противник в первой комнате
+        class: 'zombie',
+        params: {
+          id: 'zombie-1',
+          group: 3,
+          colissionWidth: 10,
+          damage: 5,
+          attackWidth: 15,
+          speed: 1.5,
+        },
+        position: {
+          room: 'roomWithBox1',
+          x: 400,
+          y: 0,
+        },
+        actions: {
+          move: 'wander',
+          attack: true,
+        },
+      },
+    ],
   });
-  registerCreature('wall', {
-    position: -40,
-    colissionWidth: 50,
-  });
-  registerCreature('box', { position: 250 });
 
-  // registerCreature('zombie', {
-  //   position: 180,
-  //   colissionWidth: 54,
-  //   damage: 5,
-  //   attackWidth: 72,
-  //   speed: 1.5,
-  //   group: 3
-  // })
+  // ищем игрока по id
+  const player = level.creatures.find((creature) => creature.id === 'knight');
 
-  const level = new Level(creatures);
   const mainCamera = new Camera(VIEWPORT, {
-    level: level,
+    level,
     target: 'knight',
   });
   console.log('mainCamera', mainCamera);
 
-  // VIEWPORT.appendChild(map.draw())
-
-  function onDown(e) {
-    //   if (e.isTrusted) {
-    //     if (e.target.dataset.keycode) {
-    //       e.code = e.target.dataset.keycode
-    //       onKeydown(e)
-    //     }
-    //   }
-  }
-
-  function onUp(e) {
-    //   if (e.isTrusted) {
-    //     if (e.target.dataset.keycode) {
-    //       e.code = e.target.dataset.keycode
-    //       onKeyup(e)
-    //     }
-    //   }
-  }
-
   function onKeydown(e) {
-    if (e.isTrusted) {
-      const new_e = new KeyboardEvent('keydown', {
-        bubbles: false,
-        cancelable: false,
-        code: e.code,
-      });
-      mainCamera.dispatchEvent(new_e);
-      player.dispatchEvent(new_e);
+    if (!e.isTrusted) {
+      return;
+    }
+
+    const newEvent = new KeyboardEvent('keydown', {
+      bubbles: false,
+      cancelable: false,
+      code: e.code,
+    });
+
+    mainCamera.dispatchEvent(newEvent);
+    if (player) {
+      player.dispatchEvent(newEvent);
     }
   }
 
   function onKeyup(e) {
-    if (e.isTrusted) {
-      const new_e = new KeyboardEvent('keyup', {
-        bubbles: false,
-        cancelable: false,
-        code: e.code,
-      });
-      mainCamera.dispatchEvent(new_e);
-      player.dispatchEvent(new_e);
+    if (!e.isTrusted) {
+      return;
+    }
+
+    const newEvent = new KeyboardEvent('keyup', {
+      bubbles: false,
+      cancelable: false,
+      code: e.code,
+    });
+
+    mainCamera.dispatchEvent(newEvent);
+    if (player) {
+      player.dispatchEvent(newEvent);
     }
   }
 
-  toLog(`Hello! I'm a message console!`);
+  logGame(`Hello! I'm a message console!`);
 
   document.addEventListener('keydown', onKeydown);
   document.addEventListener('keyup', onKeyup);
 
-  // document.addEventListener('mousedown', onDown)
-  // document.addEventListener('mouseup', onUp)
-  //
-  // document.addEventListener('touchstart', onDown)
-  // document.addEventListener('touchend', onUp)
-
-  function toLog(...args) {
-    const message = args.map((e) => JSON.stringify(e)).join(' ');
-    LOGBOX.prepend(document.createTextNode(message));
-    LOGBOX.prepend(document.createElement('br'));
-  }
-
-  function fromMultiple(...args) {
-    const constructors = [];
-    class Class {
-      constructor(...opts) {
-        for (const arg of args) {
-          const props = Object.getOwnPropertyNames(arg.prototype);
-
-          for (const prop of props) {
-            if (prop === 'constructor') {
-              constructors.push(arg.prototype.constructor);
-            } else {
-              Class.prototype[prop] = arg.prototype[prop];
-            }
-          }
-          for (const constructor of constructors) {
-            Object.assign(Class.prototype, new constructor(...opts));
-          }
-        }
-      }
-    }
-    return Class;
-  }
 })();

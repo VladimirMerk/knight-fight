@@ -1,4 +1,5 @@
 import SharedMethods from './sharedMethods';
+import { logGame } from './logger';
 
 class Camera extends EventTarget {
   constructor(viewport, options) {
@@ -136,15 +137,24 @@ class Camera extends EventTarget {
     }
   }
   setCameraPosition() {
+    // Если цель не найдена, вход в бесконечный режим
+    if (!this.target) {
+      this.freeMove = true;
+    } else {
+      // Принудительный режим завершается, если цель найдена
+      this.freeMove = false;
+    }
+
+    // Позиционирование камеры
     if (this.freeMove) {
       this.position.x += this.velocity.x;
       this.position.y += this.velocity.y;
       this.slowDownVelocity();
     } else if (this.target) {
       this.position = this.getTargetPosition();
-      // console.log(this.position)
     }
 
+    // Границы камеры
     if (this.position.x < this.bounds.xmin) {
       this.position.x = this.bounds.xmin;
     }
@@ -157,6 +167,8 @@ class Camera extends EventTarget {
     if (this.position.y > this.bounds.ymax) {
       this.position.y = this.bounds.ymax;
     }
+
+    // Обновление отображения элементов на камере
     this.mainLoop();
   }
   getTargetPosition() {
@@ -212,34 +224,71 @@ class Camera extends EventTarget {
     const creature = e.target;
     this.level.creatures.forEach((otherCreature, index) => {
       if (creature === otherCreature) {
-        toLog(`${otherCreature.id} is killed`);
         this.level.creatures.splice(index, 1);
+        logGame(`DEATH: ${otherCreature.id}`);
       }
     });
   }
   calculateHit(e) {
-    const creature = e.target;
-    switch (e.detail.direction) {
-      case 'right':
-        this.level.creatures.forEach((otherCreature) => {
-          if (creature === otherCreature) return;
-          let creatureBound = creature.element.getBoundingClientRect();
-          creatureBound.x1 = creatureBound.x + creature.attackWidth;
-          creatureBound.y1 = creatureBound.y + creatureBound.height;
-          let otherCreatureBound = otherCreature.element.getBoundingClientRect();
-          otherCreatureBound.x1 =
-            otherCreatureBound.x + otherCreature.colissionWidth;
-          otherCreatureBound.y1 =
-            otherCreatureBound.y + otherCreatureBound.height;
-          const colission = SharedMethods.intersects(
-            creatureBound,
-            otherCreatureBound
-          );
-          if (colission.x > 0) {
-            otherCreature.hit(e.detail.damage);
-          }
-        });
-        break;
+    const attacker = e.target;
+    const direction = e.detail.direction;
+
+    if (!attacker.element) return;
+
+    let hitAny = false;
+
+    this.level.creatures.forEach((target) => {
+      if (attacker === target || !target.element) return;
+
+      const aRect = attacker.element.getBoundingClientRect();
+      const tRect = target.element.getBoundingClientRect();
+
+      // строим хитбокс атаки в зависимости от направления
+      let attackLeft;
+      let attackRight;
+
+      if (direction === 'right') {
+        attackLeft = aRect.x;
+        attackRight = aRect.x + attacker.attackWidth;
+      } else if (direction === 'left') {
+        attackLeft = aRect.x - attacker.attackWidth;
+        attackRight = aRect.x;
+      } else {
+        return;
+      }
+
+      const attackTop = aRect.y;
+      const attackBottom = aRect.y + aRect.height;
+
+      const attackerHitbox = {
+        x: attackLeft,
+        x1: attackRight,
+        y: attackTop,
+        y1: attackBottom,
+      };
+
+      const targetHitbox = {
+        x: tRect.x,
+        x1: tRect.x + target.colissionWidth,
+        y: tRect.y,
+        y1: tRect.y + tRect.height,
+      };
+
+      const collision = SharedMethods.intersects(attackerHitbox, targetHitbox);
+      if (collision.x > 0) {
+        hitAny = true;
+        target.hit(e.detail.damage);
+        logGame(
+          `HIT: ${attacker.id || attacker.class} -> ${target.id ||
+            target.class} (${e.detail.damage} dmg)`
+        );
+      }
+    });
+
+    if (!hitAny) {
+      logGame(
+        `MISS: ${attacker.id || attacker.class} swing to ${direction}`
+      );
     }
   }
 }

@@ -2,22 +2,28 @@ import SharedMethods from './sharedMethods';
 
 class Creature extends EventTarget {
   constructor(
-    id,
+    clreatureClass,
     {
+      id = null,
       colissionWidth = 42,
+      detectDistance = 300,
       position = 10,
-      speed = 0,
-      attackWidth = 0,
+      speed = 1,
+      attackWidth = 50,
       group = 0,
       damage = 0,
       direction = 'left',
+      actions = {},
     } = {}
   ) {
     super();
+    this.class = clreatureClass;
+    console.log('CREATE', clreatureClass);
     this.id = id;
     this.actionValue = 'idle';
     this.colissionWidth = colissionWidth;
     this.attackWidth = attackWidth;
+    this.detectDistance = detectDistance;
     this.damage = damage;
     this.colissionInfo = { x: 0, y: 0 };
     this.speed = speed;
@@ -33,8 +39,7 @@ class Creature extends EventTarget {
     };
     this.ai = {
       counter: 0,
-      // behavior: 'walking',
-      mode: 'idle',
+      mode: 'move',
     };
     // this.map = null;
     this.setCharElement();
@@ -44,6 +49,11 @@ class Creature extends EventTarget {
     this.minPosition = 6;
     this.maxPosition = 500;
     this.actionTimer = setInterval(this.onAction.bind(this), 50);
+    this.actions = actions;
+    this.aiCounters = {
+      idle: 0,
+      wander: 0,
+    };
   }
   // get left(){
   //   const result = this.element.attributeStyleMap.get('left')
@@ -71,7 +81,7 @@ class Creature extends EventTarget {
   setCharElement() {
     this.element = document.createElement('div');
     this.element.classList.add('creature');
-    this.element.classList.add(this.id);
+    this.element.classList.add(this.class);
     // this.element.setAttribute('id', this.id)
     this.element.attributeStyleMap.set('left', CSS.px(this.position));
     this.element.attributeStyleMap.set('bottom', CSS.px(6));
@@ -85,17 +95,20 @@ class Creature extends EventTarget {
     );
     this.element.dataset.direction = this.direction;
   }
-  setDirectionLeft() {
-    this.setDirection('left');
-  }
-  setDirectionRight() {
-    this.setDirection('right');
-  }
   setDirection(direction) {
     if (!this.element) return;
     this.direction = direction;
     this.element.dataset.direction = this.direction;
   }
+
+  setDirectionLeft() {
+    this.setDirection('left');
+  }
+
+  setDirectionRight() {
+    this.setDirection('right');
+  }
+
   onAnimationIteration(e) {
     let type = e.animationName.split('-')[0];
     switch (type) {
@@ -118,7 +131,13 @@ class Creature extends EventTarget {
     // console.log('Animation end', e)
   }
   hit(damage) {
-    toLog(`hit on ${this.id} at ${damage}HP`);
+    // блок щитом
+    if (this.actionValue === 'set-shield') {
+      console.log(`${this.id} blocked ${damage} damage`);
+      return;
+    }
+
+    console.log(`hit on ${this.id} at ${damage}HP`);
     this.hitPoints -= damage;
     if (this.hitPoints <= 0) {
       this.setAction('death');
@@ -138,22 +157,24 @@ class Creature extends EventTarget {
 
   isColission(colissionWidth = 0) {
     if (this.neighbors[this.direction] === null) return false;
+
     let creatureBound = this.element.getBoundingClientRect();
-    creatureBound.x1 = creatureBound.x + colissionWidth || this.colissionWidth;
-    // creatureBound.y1 = creatureBound.y + creatureBound.height
+    const width = colissionWidth || this.colissionWidth;
+    creatureBound.x1 = creatureBound.x + width;
+
     const otherCreature = this.neighbors[this.direction].creature;
     let otherCreatureBound = otherCreature.element.getBoundingClientRect();
     otherCreatureBound.x1 = otherCreatureBound.x + otherCreature.colissionWidth;
-    // otherCreatureBound.y1 = otherCreatureBound.y + otherCreatureBound.height
+
     const isIntersect = SharedMethods.intersects(
       creatureBound,
       otherCreatureBound
     );
-    // Only horizontal
+    // Только горизонталь
     return isIntersect.x;
   }
 
-  updateNeihbors(creatures) {
+  updateNeighbors(creatures) {
     this.neighbors.left = null;
     this.neighbors.right = null;
 
@@ -201,18 +222,22 @@ class Creature extends EventTarget {
       y: parseInt(this.element.offsetTop, 10),
     };
   }
+  
   setAction(action) {
-    // this.action = action;
     if (action !== this.actionValue) {
       this.actionValue = action;
     }
   }
+
   releaseAction() {
     this.actionValue = 'idle';
   }
   walkRight() {
     if (this.isColission()) return;
     this.position += this.speed;
+    if (this.id == 'box-2') {
+      console.log('this.position', this.position, this.speed);
+    }
   }
   walkLeft() {
     if (this.isColission()) return;
@@ -220,8 +245,13 @@ class Creature extends EventTarget {
   }
   onAction() {
     if (this.npc) this.aiController();
+    if (this.id == 'box-2') {
+      console.log('onAction', this.actionValue, this.direction);
+    }
     switch (this.actionValue) {
       case 'attack':
+        break;
+      case 'defend':
         break;
       case 'walk':
         switch (this.direction) {
@@ -229,62 +259,87 @@ class Creature extends EventTarget {
             this.walkLeft();
             break;
           case 'right':
+            if (this.id == 'box-2') {
+              console.log('walkRight');
+            }
             this.walkRight();
             break;
         }
         break;
+      case 'idle':
       default:
         break;
     }
     this.updateCharElement();
   }
 
-  aiController() {
+    aiController() {
+    if (!this.actions || !this.actions.move) return;
     if (this.hitPoints <= 0 || this.actionValue === 'death') return;
-    // Нужно следить кто находится слева, а кто справа, так же учитывать
-    // расстояние
-    // Если враг, идти к врагу и атаковать. Если друг, просто ходить
-    // Если крайний идёт к врагу, тоже идти к врагу
 
-    const neighbor = this.neighbors[this.direction];
-    switch (this.ai.mode) {
-      case 'attack':
+    const candidates = [];
+
+    const tryAddTarget = (neighbor, side) => {
+      if (!neighbor) return;
+      const other = neighbor.creature;
+      if (!other || other === this) return;
+
+      // враг — любой, у кого другая группа
+      if (other.group === this.group) return;
+
+      candidates.push({
+        side,
+        distance: neighbor.distance,
+        creature: other,
+      });
+    };
+
+    tryAddTarget(this.neighbors.left, 'left');
+    tryAddTarget(this.neighbors.right, 'right');
+
+    if (candidates.length > 0) {
+      // ближайшая цель (сначала будет ящик, потом после его смерти — рыцарь)
+      candidates.sort((a, b) => a.distance - b.distance);
+      const target = candidates[0];
+
+      this.setDirection(target.side);
+
+      const dist = target.distance;
+      const targetWidth = target.creature.colissionWidth || 0;
+
+      // расстояние, при котором "тела" соприкасаются
+      const attackDist = this.colissionWidth + targetWidth;
+
+      if (dist <= attackDist) {
+        // вплотную — бьём
         this.setAction('attack');
-        this.ai.mode = 'idle';
         return;
-        break;
-      case 'move':
-        if (neighbor === null || neighbor.distance > 100) {
-          this.ai.mode = 'idle';
-          return;
-        } else if (neighbor.distance <= this.attackWidth) {
-          this.ai.mode = 'attack';
-          return;
-        } else {
-          this.setAction('walk');
-        }
-        break;
-      case 'idle':
-        if (
-          neighbor !== null &&
-          neighbor.distance <= 100 &&
-          (neighbor.creature.group === 1 ||
-            (this.group === 3 && neighbor.creature.group !== 3))
-        ) {
-          this.ai.mode = 'move';
-          return;
-        }
+      }
 
-        this.ai.counter += 1;
-        if (this.ai.counter % 100 < 50) {
-          this.setDirectionLeft();
-        } else {
-          this.setDirectionRight();
-        }
-
+      if (dist <= this.detectDistance) {
+        // видим цель — идём к ней
         this.setAction('walk');
+        return;
+      }
+    }
 
-        break;
+    // врагов рядом нет — базовое поведение
+    if (this.actions.move === 'wander') {
+      this.aiCounters.wander++;
+      if (this.aiCounters.wander >= 50) {
+        this.aiCounters.wander = 0;
+        this.setDirection(this.direction === 'left' ? 'right' : 'left');
+      }
+      this.setAction('walk');
+    } else if (this.actions.move === 'idle') {
+      this.aiCounters.idle++;
+      if (this.aiCounters.idle >= 50) {
+        this.aiCounters.idle = 0;
+        this.setDirection(this.direction === 'left' ? 'right' : 'left');
+      }
+      this.setAction('idle');
+    } else {
+      this.setAction('idle');
     }
   }
 }

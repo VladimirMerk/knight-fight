@@ -1,59 +1,89 @@
-class Room {
-  constructor() {
-    this.height = 300;
-    this.width = 500;
-    this.element = this.create();
-    this.objects = null;
-    this.generationDecorations();
-  }
-  create() {
-    const element = document.createElement('div');
-    element.classList.add('room');
-    element.attributeStyleMap.set('width', CSS.px(this.width));
-    element.attributeStyleMap.set('height', CSS.px(this.height));
-    return element;
-  }
-  generationDecorations() {
-    for (let i = 0; i < Math.floor((this.width - 100) / 300); i++) {
-      const element = document.createElement('div');
-      element.classList.add('сhandelier');
-      element.attributeStyleMap.set('left', CSS.px(300 + i * 90));
-      this.element.appendChild(element);
-    }
-
-    for (let i = 0; i < Math.floor((this.width - 100) / 300); i++) {
-      const element = document.createElement('div');
-      element.classList.add('window');
-      element.attributeStyleMap.set('left', CSS.px(100 + i * 90));
-      element.attributeStyleMap.set('top', CSS.px(this.height / 2 - 100));
-      this.element.appendChild(element);
-    }
-  }
-  draw() {
-    return this.element;
-  }
-}
+import Room from './Room.js';
+import Creature from './Creature.js';
+import Player from './player.js';
 
 class Level {
-  constructor(creatures) {
-    this.rooms = [new Room(), new Room(), new Room(), new Room()];
+  constructor(levelData) {
+    console.log('LEVEL constructor', levelData);
+    this.rooms = [];
+    this.creatures = [];
     this.width = 0;
     this.height = 0;
-    this.creatures = creatures;
+    this.createRooms(levelData.rooms || []);
+    this.createCreatures(levelData.creatures || []);
     this.draw();
   }
+
+  createRooms(roomsData) {
+    roomsData.forEach((roomData) => {
+      const room = new Room(roomData);
+      this.rooms.push(room);
+    });
+  }
+
+  createCreatures(creaturesData) {
+    let accumulatedWidth = 0;
+
+    creaturesData.forEach((creatureData) => {
+      const roomIndex = this.rooms.findIndex(
+        (room) => room.id === creatureData.position.room
+      );
+
+      if (roomIndex === -1) {
+        console.error(
+          `Room with id "${creatureData.position.room}" not found for creature "${creatureData.params?.id ||
+            creatureData.class}"`
+        );
+        return;
+      }
+
+      accumulatedWidth = this.rooms
+        .slice(0, roomIndex)
+        .reduce((acc, room) => acc + room.width, 0);
+
+      let positionX = accumulatedWidth + creatureData.position.x;
+
+      // избегаем точного наложения по X
+      let isOverlap = this.creatures.some(
+        (creature) => creature.position === positionX
+      );
+      while (isOverlap) {
+        positionX += 50;
+        isOverlap = this.creatures.some(
+          (creature) => creature.position === positionX
+        );
+      }
+
+      const params = creatureData.params || {};
+      const actions = creatureData.actions || {};
+
+      const CreatureClass =
+        creatureData.class === 'knight' ? Player : Creature;
+
+      const creature = new CreatureClass(creatureData.class, {
+        ...params,
+        position: positionX,
+        actions,
+      });
+
+      this.creatures.push(creature);
+    });
+  }
+
   loop() {
     this.setCreaturesNeighbor();
   }
+
   setCreaturesNeighbor() {
     this.creatures.forEach((creature) =>
-      creature.updateNeihbors(this.creatures)
+      creature.updateNeighbors(this.creatures)
     );
   }
+
   draw() {
     let maxWidth = 0;
-    // const fragment = document.createDocumentFragment()
     const elements = [];
+
     for (const [index, room] of this.rooms.entries()) {
       const roomElement = room.draw();
       if (index === 0) {
@@ -63,16 +93,16 @@ class Level {
         roomElement.classList.add('right-wall');
       }
       roomElement.attributeStyleMap.set('left', CSS.px(maxWidth));
-      // fragment.appendChild(roomElement);
       elements.push(roomElement);
       maxWidth += room.width;
 
       this.height = this.height < room.height ? room.height : this.height;
     }
+
     this.height += 6;
     this.width = maxWidth;
 
-    for (const creature of Object.values(this.creatures)) {
+    for (const creature of this.creatures) {
       creature.draw().forEach((element) => {
         elements.push(element);
       });
@@ -80,10 +110,11 @@ class Level {
 
     return elements;
   }
+
   getOffset() {
     return {
-      left: Math.abs(parseInt(this.rooms[0].element.offsetLeft) || 0),
-      top: Math.abs(parseInt(this.rooms[0].element.offsetTop) || 0),
+      left: Math.abs(parseInt(this.rooms[0].element.offsetLeft, 10) || 0),
+      top: Math.abs(parseInt(this.rooms[0].element.offsetTop, 10) || 0),
     };
   }
 }

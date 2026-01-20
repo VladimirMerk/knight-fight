@@ -1,8 +1,11 @@
 export default class SharedMethods {
   static intersects(a, b) {
+    const xOverlap = a.x <= b.x1 && a.x1 >= b.x;
+    const yOverlap = a.y <= b.y1 && a.y1 >= b.y;
+
     return {
-      x: a.x1 >= b.x && a.x1 <= b.x1 ? 1 : a.x >= b.x && a.x <= b.x1 ? -1 : 0,
-      y: 0,
+      x: xOverlap ? 1 : 0,
+      y: yOverlap ? 1 : 0,
     };
   }
 }
